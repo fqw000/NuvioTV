@@ -93,8 +93,11 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         // Before super.onCreate(): Hilt creates injected services there, and the budget is read once.
         MemoryBudget.init(this)
-        super.onCreate()
+        // Also before super.onCreate(): any OkHttp client built while Hilt wires the graph
+        // must see the composite trust manager, otherwise API 23 keeps the 2015-era platform
+        // store and fails on ISRG / GTS / Amazon roots (e.g. "Trust anchor not found").
         TlsSupport.init(this)
+        super.onCreate()
         SentryInitializer.start(this, sentrySettingsDataStore)
         PluginRuntimeHooks.onApplicationCreate(this)
         androidTvChannelSyncService.start()
