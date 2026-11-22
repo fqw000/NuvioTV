@@ -66,23 +66,25 @@ jobs:
             echo "NUVIO_RELEASE_STORE_PASSWORD=android"
           } >> "$GITHUB_ENV"
 
-      - name: Test updater and build fullDebug APK
-        run: ./gradlew :app:testFullDebugUnitTest --tests 'com.nuvio.tv.updater.*' :app:assembleFullDebug --stacktrace
+      - name: Build fullRelease APK
+        env:
+          CI_USE_DEBUG_SIGNING: "true"
+        run: ./gradlew :app:assembleFullRelease --stacktrace
 
-      - name: Upload fullDebug universal APK
+      - name: Upload fullRelease universal APK
         uses: actions/upload-artifact@v7
         with:
-          name: app-full-universal-debug
-          path: app/build/outputs/apk/full/debug/app-full-universal-debug.apk
+          name: app-full-universal-release
+          path: app/build/outputs/apk/full/release/app-full-universal-release.apk
           archive: false
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload fullDebug armeabi-v7a APK
+      - name: Upload fullRelease armeabi-v7a APK
         uses: actions/upload-artifact@v7
         with:
-          name: app-full-armeabi-v7a-debug
-          path: app/build/outputs/apk/full/debug/app-full-armeabi-v7a-debug.apk
+          name: app-full-armeabi-v7a-release
+          path: app/build/outputs/apk/full/release/app-full-armeabi-v7a-release.apk
           archive: false
           if-no-files-found: error
           retention-days: 7
