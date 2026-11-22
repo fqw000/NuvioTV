@@ -9,6 +9,9 @@ import com.nuvio.tv.core.network.RealtimeSocketFactory
 import com.nuvio.tv.core.network.backendRetryDelayMillis
 import com.nuvio.tv.core.network.isRetryableBackendResponse
 import com.nuvio.tv.core.network.isSafeBackendRetryRequest
+import com.nuvio.tv.core.network.IPv4FirstDns
+import com.nuvio.tv.core.network.NoDelaySocketFactory
+import com.nuvio.tv.core.network.TlsSupport
 import com.nuvio.tv.core.network.realtimeUrl
 import com.nuvio.tv.data.local.ServerConfigurationStore
 import com.nuvio.tv.domain.model.ServerConfiguration
@@ -35,9 +38,11 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.statement.request
 import io.ktor.http.HttpHeaders
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.seconds
 
@@ -64,6 +69,15 @@ object SupabaseModule {
             supabaseUrl = serverConfiguration.backendUrl,
             supabaseKey = serverConfiguration.publishableKey
         ) {
+            httpEngine = OkHttp.create {
+                config {
+                    dns(IPv4FirstDns())
+                    socketFactory(NoDelaySocketFactory)
+                    connectTimeout(30, TimeUnit.SECONDS)
+                    readTimeout(60, TimeUnit.SECONDS)
+                    TlsSupport.attach(this)
+                }
+            }
             httpConfig {
                 install(BackendRateLimitPlugin) {
                     coordinator = rateLimitCoordinator

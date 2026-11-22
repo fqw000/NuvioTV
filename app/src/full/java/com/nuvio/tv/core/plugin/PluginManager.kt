@@ -82,6 +82,7 @@ class PluginManager @Inject constructor(
     
     private val httpClient = OkHttpClient.Builder()
         .dns(com.nuvio.tv.core.network.IPv4FirstDns())
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()

@@ -40,6 +40,7 @@ class ExternalRepoParser @Inject constructor(
 ) {
     private val httpClient = OkHttpClient.Builder()
         .dns(IPv4FirstDns())
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .followRedirects(true)

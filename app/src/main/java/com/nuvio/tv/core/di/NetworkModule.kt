@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.nuvio.tv.BuildConfig
 import com.nuvio.tv.core.network.NoDelaySocketFactory
+import com.nuvio.tv.core.network.TlsSupport
 import com.nuvio.tv.data.remote.api.AddonApi
 import com.nuvio.tv.data.remote.api.AniSkipApi
 import com.nuvio.tv.data.remote.api.AnimeSkipApi
@@ -105,6 +106,7 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .dns(IPv4FirstDns())
             .socketFactory(NoDelaySocketFactory)
+            .apply { TlsSupport.attach(this) }
             // Keep separate from the old trust-all cache. Cached responses bypass a new TLS handshake.
             .cache(Cache(File(context.cacheDir, "http_cache_v2"), 50L * 1024 * 1024)) // 50 MB disk cache
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -170,6 +172,7 @@ object NetworkModule {
     fun provideCustomServerAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
         .dns(IPv4FirstDns())
         .socketFactory(NoDelaySocketFactory)
+        .apply { TlsSupport.attach(this) }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .addInterceptor { chain ->
@@ -193,6 +196,7 @@ object NetworkModule {
         OkHttpClient.Builder()
             .dns(IPv4FirstDns())
             .socketFactory(NoDelaySocketFactory)
+            .apply { TlsSupport.attach(this) }
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .addInterceptor { chain ->
@@ -212,6 +216,7 @@ object NetworkModule {
     fun provideSimklOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
         .dns(IPv4FirstDns())
         .socketFactory(NoDelaySocketFactory)
+        .apply { TlsSupport.attach(this) }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()

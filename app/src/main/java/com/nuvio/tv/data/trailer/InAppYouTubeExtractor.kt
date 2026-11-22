@@ -200,6 +200,7 @@ class InAppYouTubeExtractor internal constructor(
         OkHttpClient.Builder()
             .dns(com.nuvio.tv.core.network.IPv4FirstDns())
             .socketFactory(com.nuvio.tv.core.network.NoDelaySocketFactory)
+            .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
@@ -1015,6 +1016,7 @@ class InAppYouTubeExtractor internal constructor(
         OkHttpClient.Builder()
             .dns(com.nuvio.tv.core.network.IPv4FirstDns())
             .socketFactory(com.nuvio.tv.core.network.NoDelaySocketFactory)
+            .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
             .connectTimeout(2, TimeUnit.SECONDS)
             .readTimeout(2, TimeUnit.SECONDS)
             .followRedirects(true)

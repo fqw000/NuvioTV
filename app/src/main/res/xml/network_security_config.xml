@@ -5,6 +5,14 @@
             <certificates src="system" />
             <certificates src="@raw/isrgrootx1" />
             <certificates src="@raw/isrg_root_x2" />
+            <certificates src="@raw/gtsr1" />
+            <certificates src="@raw/gtsr2" />
+            <certificates src="@raw/gtsr3" />
+            <certificates src="@raw/gtsr4" />
+            <certificates src="@raw/amazon_root_ca1" />
+            <certificates src="@raw/amazon_root_ca2" />
+            <certificates src="@raw/amazon_root_ca3" />
+            <certificates src="@raw/amazon_root_ca4" />
         </trust-anchors>
     </base-config>
 </network-security-config>

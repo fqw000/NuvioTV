@@ -38,6 +38,7 @@ object MediaServerModule {
     ): ServerRepository {
         val http = OkHttpClient.Builder()
             .socketFactory(NoDelaySocketFactory)
+            .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .callTimeout(45, TimeUnit.SECONDS)

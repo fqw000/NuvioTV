@@ -141,6 +141,7 @@ internal object ServerDiscoveryPolicy {
 class ServerDiscoveryService @Inject constructor() {
     private val client = OkHttpClient.Builder()
         .socketFactory(NoDelaySocketFactory)
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .callTimeout(15, TimeUnit.SECONDS)

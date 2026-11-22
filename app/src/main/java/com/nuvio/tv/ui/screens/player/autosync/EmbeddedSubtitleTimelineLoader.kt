@@ -111,6 +111,7 @@ internal object EmbeddedSubtitleTimelineLoader {
 
     private val httpClient = OkHttpClient.Builder()
         .socketFactory(NoDelaySocketFactory)
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
         .callTimeout(5, TimeUnit.SECONDS)

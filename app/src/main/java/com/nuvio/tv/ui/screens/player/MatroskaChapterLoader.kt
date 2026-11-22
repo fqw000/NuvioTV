@@ -29,6 +29,7 @@ internal object MatroskaChapterLoader {
     private const val MAX_CHAPTERS_BYTES = 1024 * 1024
 
     private val httpClient = OkHttpClient.Builder()
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(4, TimeUnit.SECONDS)
         .followRedirects(true)

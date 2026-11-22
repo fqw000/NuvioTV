@@ -137,7 +137,7 @@ android {
     defaultConfig {
         applicationId = "com.nuvio.tv"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        minSdk = 24
+        minSdk = 23
         targetSdk = 36
         versionCode = 1080
         versionName = "1.2.0-beta.3"

@@ -298,6 +298,7 @@ class CollectionManagementViewModel @Inject constructor(
                 val client = okhttp3.OkHttpClient.Builder()
                     .dns(com.nuvio.tv.core.network.IPv4FirstDns())
                     .socketFactory(com.nuvio.tv.core.network.NoDelaySocketFactory)
+                    .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
                     .build()
                 val request = okhttp3.Request.Builder().url(url).build()
                 // Read the body on IO too: execute() only returns the headers.

@@ -174,6 +174,7 @@ class ExternalExtensionLoader @Inject constructor(
 ) {
     private val httpClient = OkHttpClient.Builder()
         .dns(IPv4FirstDns())
+        .apply { com.nuvio.tv.core.network.TlsSupport.attach(this) }
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)

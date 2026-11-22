@@ -6,6 +6,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.nuvio.tv.core.network.IPv4FirstDns
 import com.nuvio.tv.core.network.PlaybackSocketFactory
+import com.nuvio.tv.core.network.TlsSupport
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -84,6 +85,7 @@ internal object PlayerPlaybackNetworking {
             .dispatcher(dispatcher)
             .dns(IPv4FirstDns())
             .socketFactory(PlaybackSocketFactory)
+            .apply { TlsSupport.attach(this) }
             .eventListenerFactory(PlaybackConnectionEvents)
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .connectTimeout(15, TimeUnit.SECONDS)
