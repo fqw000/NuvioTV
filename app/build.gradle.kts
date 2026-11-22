@@ -475,6 +475,21 @@ val downloadAudioSyncRuntime by tasks.registering {
     }
 }
 
+// Android 6.0.1 port: the fork AARs in libs/ (lib-common-release.aar, lib-exoplayer-release.aar,
+// lib-datasource*.aar, lib-exoplayer-hls-release.aar, lib-extractor-release.aar) replace the Maven
+// media3 modules of the same name. Exclude the Maven copies so the classpath carries a single
+// media3-common/exoplayer/datasource/extractor/hls. Without this, D8 sees duplicate class
+// definitions and desugars Media3's Java 8 default interface methods incorrectly at minSdk 23,
+// causing AbstractMethodError (Player.Listener.onEvents / BitmapLoader.loadBitmapFromMetadata).
+configurations.all {
+    exclude(group = "androidx.media3", module = "media3-common")
+    exclude(group = "androidx.media3", module = "media3-exoplayer")
+    exclude(group = "androidx.media3", module = "media3-datasource")
+    exclude(group = "androidx.media3", module = "media3-datasource-okhttp")
+    exclude(group = "androidx.media3", module = "media3-exoplayer-hls")
+    exclude(group = "androidx.media3", module = "media3-extractor")
+}
+
 dependencies {
     implementation(files(sherpaOnnxAar).builtBy(downloadAudioSyncRuntime))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
