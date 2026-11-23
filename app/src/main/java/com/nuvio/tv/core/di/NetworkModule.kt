@@ -322,7 +322,13 @@ object NetworkModule {
     @Named("tmdb")
     fun provideTmdbRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder()
-            .baseUrl("https://api.themoviedb.org/3/")
+            // Overridable via TMDB_API_BASE_URL in local.properties for networks where
+            // api.themoviedb.org is blocked; must end with '/' for Retrofit.
+            .baseUrl(
+                BuildConfig.TMDB_API_BASE_URL
+                    .ifBlank { "https://api.themoviedb.org/3/" }
+                    .let { if (it.endsWith("/")) it else "$it/" }
+            )
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()

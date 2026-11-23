@@ -314,6 +314,24 @@ class PluginRuntime @Inject constructor() {
                         }
                     }
 
+                    // Synchronous sleep backing the setTimeout/setInterval polyfills.
+                    // QuickJS has no event loop, so timers must block the script thread.
+                    function("__native_sleep") { args ->
+                        val raw = args.getOrNull(0)
+                        val ms = when (raw) {
+                            is Number -> raw.toLong()
+                            else -> raw?.toString()?.toDoubleOrNull()?.toLong() ?: 0L
+                        }
+                        if (ms > 0L) {
+                            try {
+                                Thread.sleep(ms.coerceAtMost(60_000L))
+                            } catch (_: InterruptedException) {
+                                Thread.currentThread().interrupt()
+                            }
+                        }
+                        null
+                    }
+
                     // Define URL parser
                     function("__parse_url") { args ->
                         val urlString = args.getOrNull(0)?.toString() ?: ""
@@ -721,6 +739,37 @@ class PluginRuntime @Inject constructor() {
             }
             if (typeof globalThis.self === 'undefined') {
                 globalThis.self = globalThis;
+            }
+
+            // Timers. QuickJS exposes no event loop, so providers that await a delay
+            // (e.g. "await new Promise(r => setTimeout(r, ms))" in retry logic) hit
+            // "setTimeout is not defined". Implement them on top of a native sleep so
+            // the callback runs before control returns to the provider.
+            if (typeof globalThis.setTimeout === 'undefined') {
+                globalThis.setTimeout = function(fn, ms) {
+                    if (typeof fn === 'function') {
+                        var extraArgs = Array.prototype.slice.call(arguments, 2);
+                        try {
+                            __native_sleep((ms | 0) || 0);
+                            fn.apply(null, extraArgs);
+                        } catch (e) {
+                            console.error('setTimeout callback error: ' + (e && e.message ? e.message : e));
+                        }
+                    }
+                    return 0;
+                };
+            }
+            if (typeof globalThis.clearTimeout === 'undefined') {
+                globalThis.clearTimeout = function(id) {};
+            }
+            if (typeof globalThis.setInterval === 'undefined') {
+                // No event loop: an interval degenerates to a single delayed call.
+                globalThis.setInterval = function(fn, ms) {
+                    return globalThis.setTimeout(fn, ms);
+                };
+            }
+            if (typeof globalThis.clearInterval === 'undefined') {
+                globalThis.clearInterval = function(id) {};
             }
 
             // Fetch implementation (async)

@@ -106,15 +106,19 @@ internal fun PlayerRuntimeController.releaseMediaSession() {
     mpvMediaSessionPlayer = null
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun PlayerRuntimeController.installExoMediaSession(player: ExoPlayer) {
     releaseMediaSession()
     if (player.canAdvertiseSession()) {
-        currentMediaSession = MediaSession.Builder(context, SafeMediaSessionPlayer(player)).build()
+        currentMediaSession = MediaSession.Builder(context, SafeMediaSessionPlayer(player))
+            .setBitmapLoader(TlsBitmapLoader)
+            .build()
         updateMediaSessionMetadata()
     }
 }
 
 /** Creates the foreground-only MediaSession used by Bluetooth and other Android media controls. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun PlayerRuntimeController.installMpvMediaSession() {
     runCatching {
         if (!isUsingMpvEngine() || isInBackground || mpvView == null || currentStreamUrl.isBlank()) return
@@ -142,7 +146,9 @@ internal fun PlayerRuntimeController.installMpvMediaSession() {
             }
         )
         mpvMediaSessionPlayer = sessionPlayer
-        currentMediaSession = MediaSession.Builder(context, sessionPlayer).build()
+        currentMediaSession = MediaSession.Builder(context, sessionPlayer)
+            .setBitmapLoader(TlsBitmapLoader)
+            .build()
         updateMediaSessionMetadata()
     }.onFailure { error ->
         releaseMediaSession()
