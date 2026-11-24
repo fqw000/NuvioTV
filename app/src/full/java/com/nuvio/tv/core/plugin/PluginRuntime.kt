@@ -530,6 +530,25 @@ class PluginRuntime @Inject constructor() {
         }
     }
 
+    /**
+     * Rewrites TMDB API URLs to the mirror configured in TMDB_API_BASE_URL so that
+     * providers which hard-code api.themoviedb.org keep working on networks where the
+     * official endpoint is unreachable. No-op when no override is configured.
+     */
+    private fun rewriteTmdbUrl(url: String): String {
+        val base = BuildConfig.TMDB_API_BASE_URL
+            .ifBlank { return url }
+            .let { if (it.endsWith("/")) it else "$it/" }
+        if (base == "https://api.themoviedb.org/3/") return url
+        return when {
+            url.startsWith("https://api.themoviedb.org/3/") ->
+                base + url.removePrefix("https://api.themoviedb.org/3/")
+            url.startsWith("http://api.themoviedb.org/3/") ->
+                base + url.removePrefix("http://api.themoviedb.org/3/")
+            else -> url
+        }
+    }
+
     private fun performNativeFetch(
         url: String,
         method: String,
@@ -539,7 +558,8 @@ class PluginRuntime @Inject constructor() {
         followRedirects: Boolean,
         inFlightCalls: MutableSet<Call>
     ): String {
-        Log.d(TAG, "Fetch: $method $url bodyKind=$bodyKind")
+        val effectiveUrl = rewriteTmdbUrl(url)
+        Log.d(TAG, "Fetch: $method $effectiveUrl bodyKind=$bodyKind")
         return try {
             val requestBytes = when (bodyKind) {
                 "base64" -> base64Decode(body)
@@ -570,7 +590,7 @@ class PluginRuntime @Inject constructor() {
             }
 
             val requestBuilder = Request.Builder()
-                .url(url)
+                .url(effectiveUrl)
                 .headers(Headers.headersOf(*headers.flatMap { listOf(it.key, it.value) }.toTypedArray()))
 
             when (method.uppercase()) {
