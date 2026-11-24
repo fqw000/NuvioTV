@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.BuildConfig
+import com.nuvio.tv.core.build.AppFeaturePolicy
 import com.nuvio.tv.R
 import com.nuvio.tv.updater.model.AppUpdate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -80,13 +81,14 @@ class UpdateViewModel @Inject constructor(
             downloadStore.clearIfInstalled()
             consumeAutoInstalledUpdate()
             syncBackgroundJobs()
-            if (enabled && !BuildConfig.IS_DEBUG_BUILD) {
+            if (enabled && !BuildConfig.IS_DEBUG_BUILD && AppFeaturePolicy.inAppUpdatesEnabled) {
                 checkForUpdates(force = false, showNoUpdateFeedback = false)
             }
         }
     }
 
     fun checkForUpdates(force: Boolean, showNoUpdateFeedback: Boolean) {
+        if (!AppFeaturePolicy.inAppUpdatesEnabled) return
         if (!force && !_uiState.value.updateBannerEnabled) return
 
         updateCheckJob?.cancel()
@@ -383,7 +385,7 @@ class UpdateViewModel @Inject constructor(
 
     // Background checks run while the banner or automatic installs are on; the idle install job only with the latter.
     private fun syncBackgroundJobs() {
-        if (BuildConfig.IS_DEBUG_BUILD) return
+        if (BuildConfig.IS_DEBUG_BUILD || !AppFeaturePolicy.inAppUpdatesEnabled) return
         val state = _uiState.value
         if (state.updateBannerEnabled || state.autoInstallEnabled) {
             UpdateJobService.schedulePeriodicCheck(context)

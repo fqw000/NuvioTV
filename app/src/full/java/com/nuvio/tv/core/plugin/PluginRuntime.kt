@@ -334,6 +334,17 @@ class PluginRuntime @Inject constructor() {
                         null
                     }
 
+                    // Backing for the TextEncoder/TextDecoder polyfills. QuickJS exposes neither,
+                    // but several providers (e.g. Vidrock) call them directly.
+                    function("__text_encode") { args ->
+                        val s = args.getOrNull(0)?.toString() ?: ""
+                        base64Encode(s.toByteArray(Charsets.UTF_8))
+                    }
+                    function("__text_decode") { args ->
+                        val b64 = args.getOrNull(0)?.toString() ?: ""
+                        runCatching { String(base64Decode(b64), Charsets.UTF_8) }.getOrDefault("")
+                    }
+
                     // Synchronous sleep backing the setTimeout/setInterval polyfills.
                     // QuickJS has no event loop, so timers must block the script thread.
                     function("__native_sleep") { args ->
@@ -807,6 +818,23 @@ class PluginRuntime @Inject constructor() {
                 globalThis.self = globalThis;
             }
 
+            // Minimal Node-style process object. Some providers (e.g. Vidsrc) read
+            // process.env / process.platform; provide an empty-but-real object.
+            if (typeof globalThis.process === 'undefined') {
+                globalThis.process = {
+                    env: {},
+                    platform: 'android',
+                    version: '',
+                    versions: {},
+                    argv: [],
+                    browser: true,
+                    cwd: function() { return '/'; },
+                    nextTick: function(fn) {
+                        if (typeof fn === 'function') { try { fn(); } catch (e) {} }
+                    }
+                };
+            }
+
             // Timers. QuickJS exposes no event loop, so providers that await a delay
             // (e.g. "await new Promise(r => setTimeout(r, ms))" in retry logic) hit
             // "setTimeout is not defined". Implement them on top of a native sleep so
@@ -861,6 +889,31 @@ class PluginRuntime @Inject constructor() {
                 var bytes = new Uint8Array(binary.length);
                 for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                 return bytes;
+            }
+
+            // TextEncoder/TextDecoder (UTF-8) backed by native __text_encode/__text_decode.
+            if (typeof TextEncoder === 'undefined') {
+                function TextEncoder() {}
+                TextEncoder.prototype.encode = function(value) {
+                    return __fetch_base64_to_bytes(__text_encode(String(value)));
+                };
+                globalThis.TextEncoder = TextEncoder;
+            }
+            if (typeof TextDecoder === 'undefined') {
+                function TextDecoder() {}
+                TextDecoder.prototype.decode = function(value) {
+                    var bytes = null;
+                    if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
+                        bytes = new Uint8Array(value);
+                    } else if (typeof ArrayBuffer !== 'undefined' &&
+                               typeof ArrayBuffer.isView === 'function' && ArrayBuffer.isView(value)) {
+                        bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+                    } else {
+                        bytes = value || new Uint8Array(0);
+                    }
+                    return __text_decode(__fetch_bytes_to_base64(bytes));
+                };
+                globalThis.TextDecoder = TextDecoder;
             }
 
             function __normalize_fetch_body(body) {

@@ -9,6 +9,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.nuvio.tv.BuildConfig
+import com.nuvio.tv.core.build.AppFeaturePolicy
 import com.nuvio.tv.core.util.hasPendingJob
 import com.nuvio.tv.core.util.scheduleSafely
 import dagger.hilt.EntryPoint
@@ -80,6 +81,7 @@ class UpdateJobService : JobService() {
     }
 
     private suspend fun checkAndDownload(entryPoint: UpdateJobEntryPoint) {
+        if (!AppFeaturePolicy.inAppUpdatesEnabled) return
         val preferences = entryPoint.updatePreferences()
         val autoInstallEnabled = preferences.autoInstallEnabled.first()
         if (!preferences.updateBannerEnabled.first() && !autoInstallEnabled) return
@@ -113,6 +115,7 @@ class UpdateJobService : JobService() {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ApkInstaller.canRequestPackageInstalls(context)
 
         fun schedulePeriodicCheck(context: Context) {
+            if (!AppFeaturePolicy.inAppUpdatesEnabled) return
             val scheduler = context.jobScheduler()
             if (scheduler.hasPendingJob(JOB_ID_CHECK)) return
             val job = JobInfo.Builder(JOB_ID_CHECK, ComponentName(context, UpdateJobService::class.java))
@@ -125,6 +128,7 @@ class UpdateJobService : JobService() {
 
         /** Downloads a newer release found by the in-app check without waiting for the next periodic run. */
         fun scheduleCheckNow(context: Context) {
+            if (!AppFeaturePolicy.inAppUpdatesEnabled) return
             val job = JobInfo.Builder(JOB_ID_CHECK_NOW, ComponentName(context, UpdateJobService::class.java))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .build()

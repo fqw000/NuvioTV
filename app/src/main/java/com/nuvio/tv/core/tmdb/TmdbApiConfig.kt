@@ -22,14 +22,38 @@ object TmdbApiConfig {
     val effectiveBaseUrl: String
         get() = overrideBaseUrl.ifBlank { defaultBaseUrl }
 
-    /** Host portion of the effective base URL, or "" if it cannot be parsed. */
+    /**
+     * Host portion of the effective base URL. Falls back to the build-time default when the
+     * runtime override is blank or not a usable hostname (e.g. someone typed just "https" or
+     * "https://https/3/"), so a bad value can never turn into a malformed "https://https/..."
+     * request URL.
+     */
     val host: String
-        get() = runCatching {
-            val normalized = effectiveBaseUrl.let {
-                if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it"
-            }
-            java.net.URI(normalized).host ?: ""
-        }.getOrNull() ?: ""
+        get() {
+            val parsed = parseHost(effectiveBaseUrl)
+            return parsed.ifBlank { parseHost(defaultBaseUrl) }
+        }
+
+    private fun parseHost(base: String): String = runCatching {
+        val trimmed = base.trim()
+        if (trimmed.isEmpty()) return@runCatching ""
+        val normalized = if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            trimmed
+        } else {
+            "https://$trimmed"
+        }
+        val h = java.net.URI(normalized).host.orEmpty()
+        when {
+            h.isBlank() -> ""
+            h.equals("https", ignoreCase = true) -> ""
+            h.equals("http", ignoreCase = true) -> ""
+            h.contains('/') -> ""
+            h.contains(':') -> ""
+            else -> h
+        }
+    }.getOrNull() ?: ""
 
     /** Empty string resets to the build-time default. */
     fun update(baseUrl: String) {
