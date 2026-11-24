@@ -1382,6 +1382,11 @@
     <string name="tmdb_more_like_this_subtitle">详情和播放后画面上的 TMDB 推荐背景图</string>
     <string name="tmdb_collections_title">收藏</string>
     <string name="tmdb_collections_subtitle">按上映顺序排列的 TMDB 电影收藏</string>
+    <string name="tmdb_api_base_url_title">TMDB 代理地址</string>
+    <string name="tmdb_api_base_url_subtitle">可选的自定义 TMDB API 地址（留空则使用内置默认值）</string>
+    <string name="tmdb_api_base_url_dialog_title">TMDB 代理地址</string>
+    <string name="tmdb_api_base_url_dialog_subtitle">输入以 /3/ 结尾的完整地址，例如 https://tmdb.example.com/3/</string>
+    <string name="tmdb_api_base_url_placeholder">https://tmdb.example.com/3/</string>
 
     <string name="tmdb_language_dialog_title">TMDB 语言</string>
 

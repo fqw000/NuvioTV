@@ -88,7 +88,7 @@ class TvRecommendationManager @Inject constructor(
     }
 
     suspend fun updateWatchNext(items: List<WatchProgress>) {
-        if (!isTvDevice()) return
+        if (!isTvDevice() || !isWatchNextSupported()) return
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 try {
@@ -141,7 +141,7 @@ class TvRecommendationManager @Inject constructor(
     }
 
     suspend fun updateSingleWatchNextProgram(progress: WatchProgress) {
-        if (!isTvDevice()) return
+        if (!isTvDevice() || !isWatchNextSupported()) return
         mutex.withLock {
             pendingWatchNext = progress
             if (isPlaybackActive.value) return@withLock
@@ -151,7 +151,7 @@ class TvRecommendationManager @Inject constructor(
     }
 
     private suspend fun flushPendingWatchNext() {
-        if (!isTvDevice()) return
+        if (!isTvDevice() || !isWatchNextSupported()) return
         mutex.withLock {
             if (isPlaybackActive.value) return@withLock
             val progress = pendingWatchNext ?: return@withLock
@@ -207,7 +207,7 @@ class TvRecommendationManager @Inject constructor(
     }
 
     suspend fun onProgressRemoved(contentId: String) {
-        if (!isTvDevice()) return
+        if (!isTvDevice() || !isWatchNextSupported()) return
         mutex.withLock {
             pendingWatchNext?.let { pending ->
                 if (watchNextIdMatchesContentId(programBuilder.watchNextId(pending), contentId)) {
@@ -226,4 +226,12 @@ class TvRecommendationManager @Inject constructor(
 
     private fun isTvDevice(): Boolean =
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+
+    /**
+     * The watch_next_program provider contract (content://android.media.tv/watch_next_program)
+     * only exists from API 26 (O). On API 23 the ROM has no such URI, so every query/insert
+     * throws UnknownUriException; skip the whole path below O instead of spamming the log.
+     */
+    private fun isWatchNextSupported(): Boolean =
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
 }

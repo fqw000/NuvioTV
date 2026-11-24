@@ -4,10 +4,12 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.nuvio.tv.core.profile.ProfileManager
+import com.nuvio.tv.core.tmdb.TmdbApiConfig
 import com.nuvio.tv.domain.model.TmdbSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +49,7 @@ class TmdbSettingsDataStore @Inject constructor(
     private val useTrailersKey = booleanPreferencesKey("tmdb_use_trailers")
     private val useMoreLikeThisKey = booleanPreferencesKey("tmdb_use_more_like_this")
     private val useCollectionsKey = booleanPreferencesKey("tmdb_use_collections")
+    private val apiBaseUrlKey = stringPreferencesKey("tmdb_api_base_url")
 
     val settings: StateFlow<TmdbSettings> = profileManager.activeProfileId.flatMapLatest { pid ->
         factory.get(pid, FEATURE).data.map { prefs ->
@@ -65,10 +68,20 @@ class TmdbSettingsDataStore @Inject constructor(
                 useSeasonPosters = prefs[useSeasonPostersKey] ?: false,
                 useTrailers = prefs[useTrailersKey] ?: true,
                 useMoreLikeThis = prefs[useMoreLikeThisKey] ?: true,
-                useCollections = prefs[useCollectionsKey] ?: true
+                useCollections = prefs[useCollectionsKey] ?: true,
+                tmdbApiBaseUrl = prefs[apiBaseUrlKey] ?: ""
             )
         }
     }.stateIn(scope, SharingStarted.Eagerly, TmdbSettings())
+
+    init {
+        // Mirror the persisted proxy setting into the process-wide singleton used by the
+        // TMDB Retrofit interceptor and the plugin fetch bridge. StateFlow is Eagerly
+        // started, so the current value is applied immediately and on every change.
+        scope.launch {
+            settings.collect { TmdbApiConfig.update(it.tmdbApiBaseUrl) }
+        }
+    }
 
     suspend fun setEnabled(enabled: Boolean) {
         store().edit { it[enabledKey] = enabled }
@@ -128,5 +141,9 @@ class TmdbSettingsDataStore @Inject constructor(
 
     suspend fun setUseCollections(enabled: Boolean) {
         store().edit { it[useCollectionsKey] = enabled }
+    }
+
+    suspend fun setApiBaseUrl(url: String) {
+        store().edit { it[apiBaseUrlKey] = url.trim() }
     }
 }

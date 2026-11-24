@@ -3,6 +3,7 @@ package com.nuvio.tv.core.plugin
 import android.util.Log
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
+import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.quickJs
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -14,19 +15,25 @@ import com.nuvio.tv.domain.model.toStreamAudioDelayMs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.coroutineContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.net.URL
 import java.util.Base64
@@ -240,6 +247,7 @@ class PluginRuntime @Inject constructor() {
         val loadedDocIds = java.util.Collections.synchronizedList(mutableListOf<String>())
         val elementCache = ConcurrentHashMap<String, Element>()
         val inFlightCalls = ConcurrentHashMap.newKeySet<Call>()
+        val abortableCalls = ConcurrentHashMap<String, Call>()
 
         val job = coroutineContext[kotlinx.coroutines.Job]
         val cancellationRegistration = job?.invokeOnCompletion { cause ->
@@ -287,7 +295,7 @@ class PluginRuntime @Inject constructor() {
                         }
                     }
 
-                    function("__native_fetch") { args ->
+                    asyncFunction("__native_fetch") { args ->
                         val url = args.getOrNull(0)?.toString() ?: ""
                         val method = args.getOrNull(1)?.toString() ?: "GET"
                         val headersJson = args.getOrNull(2)?.toString() ?: "{}"
@@ -296,8 +304,12 @@ class PluginRuntime @Inject constructor() {
                         val followRedirects = args.getOrNull(5)?.toString()?.let {
                             !it.equals("false", ignoreCase = true)
                         } ?: true
+                        val abortId = args.getOrNull(6)?.toString() ?: ""
                         try {
-                            performNativeFetch(url, method, headersJson, bodyKind, body, followRedirects, inFlightCalls)
+                            performNativeFetchAsync(
+                                url, method, headersJson, bodyKind, body, followRedirects,
+                                inFlightCalls, abortableCalls, abortId
+                            )
                         } catch (t: Throwable) {
                             Log.e(TAG, "Async fetch bridge error for $method $url: ${t.message}")
                             gson.toJson(
@@ -312,6 +324,14 @@ class PluginRuntime @Inject constructor() {
                                 )
                             )
                         }
+                    }
+
+                    // Cancels an in-flight fetch by abort id. Invoked by the JS AbortController
+                    // polyfill so signal.abort() actually tears down the underlying OkHttp call.
+                    function("__abort_fetch") { args ->
+                        val id = args.getOrNull(0)?.toString() ?: ""
+                        abortableCalls.remove(id)?.cancel()
+                        null
                     }
 
                     // Synchronous sleep backing the setTimeout/setInterval polyfills.
@@ -531,32 +551,39 @@ class PluginRuntime @Inject constructor() {
     }
 
     /**
-     * Rewrites TMDB API URLs to the mirror configured in TMDB_API_BASE_URL so that
-     * providers which hard-code api.themoviedb.org keep working on networks where the
-     * official endpoint is unreachable. No-op when no override is configured.
+     * Rewrites TMDB API URLs to the configured proxy host (runtime setting, falling back
+     * to the build-time TMDB_API_BASE_URL) so providers that hard-code api.themoviedb.org
+     * keep working on networks where the official endpoint is unreachable. The `/3/...`
+     * path is preserved; only the host is swapped.
      */
     private fun rewriteTmdbUrl(url: String): String {
-        val base = BuildConfig.TMDB_API_BASE_URL
-            .ifBlank { return url }
-            .let { if (it.endsWith("/")) it else "$it/" }
-        if (base == "https://api.themoviedb.org/3/") return url
-        return when {
-            url.startsWith("https://api.themoviedb.org/3/") ->
-                base + url.removePrefix("https://api.themoviedb.org/3/")
-            url.startsWith("http://api.themoviedb.org/3/") ->
-                base + url.removePrefix("http://api.themoviedb.org/3/")
-            else -> url
+        val host = com.nuvio.tv.core.tmdb.TmdbApiConfig.host
+        if (host.isBlank() || host.equals("api.themoviedb.org", ignoreCase = true)) return url
+        return try {
+            val u = URL(url)
+            if (u.host.equals("api.themoviedb.org", ignoreCase = true)) {
+                val port = if (u.port > 0) ":${u.port}" else ""
+                val query = u.query?.let { "?$it" } ?: ""
+                val ref = u.ref?.let { "#$it" } ?: ""
+                "${u.protocol}://$host$port${u.path ?: "/"}$query$ref"
+            } else {
+                url
+            }
+        } catch (e: Exception) {
+            url
         }
     }
 
-    private fun performNativeFetch(
+    private suspend fun performNativeFetchAsync(
         url: String,
         method: String,
         headersJson: String,
         bodyKind: String,
         body: String,
         followRedirects: Boolean,
-        inFlightCalls: MutableSet<Call>
+        inFlightCalls: MutableSet<Call>,
+        abortableCalls: MutableMap<String, Call>,
+        abortId: String
     ): String {
         val effectiveUrl = rewriteTmdbUrl(url)
         Log.d(TAG, "Fetch: $method $effectiveUrl bodyKind=$bodyKind")
@@ -625,9 +652,22 @@ class PluginRuntime @Inject constructor() {
             }
             val call = client.newCall(request)
             inFlightCalls.add(call)
+            if (abortId.isNotEmpty()) abortableCalls[abortId] = call
 
             try {
-                val response = call.execute()
+                // Real async: enqueue on OkHttp's worker pool and suspend this coroutine.
+                // The JS engine thread is free while the request is in flight, so the
+                // AbortController timer (setTimeout) can fire and cancel the socket.
+                val response = suspendCancellableCoroutine<Response> { cont ->
+                    call.enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            cont.resumeWithException(e)
+                        }
+                        override fun onResponse(call: Call, response: Response) {
+                            cont.resume(response)
+                        }
+                    })
+                }
 
                 response.use { httpResponse ->
                     val bodyContentType = httpResponse.body?.contentType()
@@ -669,9 +709,15 @@ class PluginRuntime @Inject constructor() {
                     Log.d(TAG, "Fetch result: ${httpResponse.code} ${httpResponse.message} url=$url bodyLen=${responseBody.length} bodyPreview=${responseBody.take(300)}")
                     gson.toJson(result)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                call.cancel()
+                throw e
             } finally {
                 inFlightCalls.remove(call)
+                if (abortId.isNotEmpty()) abortableCalls.remove(abortId)
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Fetch error: ${e.message}")
             gson.toJson(mapOf(
@@ -853,9 +899,20 @@ class PluginRuntime @Inject constructor() {
                     headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
                 }
 
-                var result = __native_fetch(url, method, JSON.stringify(headers), body.kind, body.value, followRedirects);
+                var abortId = (globalThis.__nuvio_fetch_seq = (globalThis.__nuvio_fetch_seq || 0) + 1);
+                var abortHandler = null;
+                if (signal && typeof signal.addEventListener === 'function') {
+                    abortHandler = function() { __abort_fetch(abortId); };
+                    signal.addEventListener('abort', abortHandler);
+                }
+
+                var result = await __native_fetch(url, method, JSON.stringify(headers), body.kind, body.value, followRedirects, abortId);
                 var parsed = JSON.parse(result);
                 var responseBytes = __fetch_base64_to_bytes(parsed.bodyBase64);
+
+                if (abortHandler && signal && typeof signal.removeEventListener === 'function') {
+                    try { signal.removeEventListener('abort', abortHandler); } catch (e) {}
+                }
 
                 if (signal && signal.aborted) {
                     var postErr = new Error('The operation was aborted.');

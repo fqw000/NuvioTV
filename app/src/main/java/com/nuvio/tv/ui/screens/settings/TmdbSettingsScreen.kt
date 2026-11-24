@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -27,10 +30,15 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.Text
 import com.nuvio.tv.R
 import com.nuvio.tv.core.build.AppFeaturePolicy
 import com.nuvio.tv.data.local.AVAILABLE_TMDB_LANGUAGES
 import com.nuvio.tv.data.local.displayName
+import com.nuvio.tv.ui.components.NuvioDialog
+import com.nuvio.tv.ui.screens.collection.NuvioTextField
 
 @Composable
 fun TmdbSettingsScreen(
@@ -54,6 +62,7 @@ fun TmdbSettingsContent(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showProxyDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -133,6 +142,16 @@ fun TmdbSettingsContent(
                         value = languageName,
                         enabled = uiState.enabled,
                         onClick = { showLanguageDialog = true }
+                    )
+                }
+
+                item(key = "tmdb_api_base_url") {
+                    SettingsActionRow(
+                        title = stringResource(R.string.tmdb_api_base_url_title),
+                        subtitle = stringResource(R.string.tmdb_api_base_url_subtitle),
+                        value = uiState.tmdbApiBaseUrl.ifBlank { stringResource(R.string.mdblist_not_set) },
+                        enabled = uiState.enabled,
+                        onClick = { showProxyDialog = true }
                     )
                 }
 
@@ -277,5 +296,74 @@ fun TmdbSettingsContent(
             },
             onDismiss = { showLanguageDialog = false }
         )
+    }
+
+    if (showProxyDialog) {
+        TmdbProxyUrlDialog(
+            currentValue = uiState.tmdbApiBaseUrl,
+            onSave = { url ->
+                viewModel.onEvent(TmdbSettingsEvent.SetApiBaseUrl(url))
+                showProxyDialog = false
+            },
+            onClear = {
+                viewModel.onEvent(TmdbSettingsEvent.SetApiBaseUrl(""))
+                showProxyDialog = false
+            },
+            onDismiss = { showProxyDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun TmdbProxyUrlDialog(
+    currentValue: String,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var value by remember(currentValue) { mutableStateOf(currentValue) }
+
+    NuvioDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.tmdb_api_base_url_dialog_title),
+        subtitle = stringResource(R.string.tmdb_api_base_url_dialog_subtitle),
+        width = 700.dp
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            NuvioTextField(
+                value = value,
+                onValueChange = { value = it },
+                placeholder = stringResource(R.string.tmdb_api_base_url_placeholder),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.colors(
+                        containerColor = NuvioTheme.colors.BackgroundElevated,
+                        contentColor = NuvioTheme.colors.TextPrimary
+                    )
+                ) { Text(stringResource(R.string.action_cancel)) }
+                Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
+                Button(
+                    onClick = onClear,
+                    colors = ButtonDefaults.colors(
+                        containerColor = NuvioTheme.colors.BackgroundElevated,
+                        contentColor = NuvioTheme.colors.TextPrimary
+                    )
+                ) { Text(stringResource(R.string.action_clear)) }
+                Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
+                Button(
+                    onClick = { onSave(value) },
+                    colors = ButtonDefaults.colors(
+                        containerColor = NuvioTheme.colors.BackgroundCard,
+                        contentColor = NuvioTheme.colors.TextPrimary
+                    )
+                ) { Text(stringResource(R.string.action_save)) }
+            }
+        }
     }
 }

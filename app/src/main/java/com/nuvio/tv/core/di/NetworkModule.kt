@@ -3,6 +3,7 @@ package com.nuvio.tv.core.di
 import android.content.Context
 import android.util.Log
 import com.nuvio.tv.BuildConfig
+import com.nuvio.tv.core.tmdb.TmdbHostRewriteInterceptor
 import com.nuvio.tv.core.network.NoDelaySocketFactory
 import com.nuvio.tv.core.network.TlsSupport
 import com.nuvio.tv.data.remote.api.AddonApi
@@ -322,14 +323,11 @@ object NetworkModule {
     @Named("tmdb")
     fun provideTmdbRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
         Retrofit.Builder()
-            // Overridable via TMDB_API_BASE_URL in local.properties for networks where
-            // api.themoviedb.org is blocked; must end with '/' for Retrofit.
-            .baseUrl(
-                BuildConfig.TMDB_API_BASE_URL
-                    .ifBlank { "https://api.themoviedb.org/3/" }
-                    .let { if (it.endsWith("/")) it else "$it/" }
-            )
-            .client(okHttpClient)
+            // Base stays on the canonical api.themoviedb.org/3/ path; the host is rewritten
+            // per request by TmdbHostRewriteInterceptor using the runtime proxy setting, so
+            // changing it in Settings takes effect without recreating this singleton.
+            .baseUrl("https://api.themoviedb.org/3/")
+            .client(okHttpClient.newBuilder().addInterceptor(TmdbHostRewriteInterceptor()).build())
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
 

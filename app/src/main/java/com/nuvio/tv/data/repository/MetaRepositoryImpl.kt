@@ -50,6 +50,10 @@ class MetaRepositoryImpl @Inject constructor(
          *  Prevents excessive re-fetching on every details screen visit for addons
          *  that don't set meaningful Cache-Control headers. */
         private const val MIN_META_TTL_MS = 5L * 60 * 1000
+        /** How long a failed primary lookup is remembered before retrying. Prevents
+         *  re-hammering an addon with IDs it cannot resolve (e.g. non-TMDB IDs sent to
+         *  the TMDB catalog addon) on every catalog refresh. */
+        private const val NEGATIVE_META_TTL_MS = 2L * 60 * 1000
         private const val MAX_META_CACHE_ENTRIES = 32
         private const val MAX_PRIMARY_META_CACHE_ENTRIES = 16
         private const val SERVER_META_TTL_MS = 60_000L
@@ -129,6 +133,7 @@ class MetaRepositoryImpl @Inject constructor(
     // Separate cache for full meta fetched from addons (bypasses catalog-level cache)
     private val addonMetaCache = createLruCacheMap<String, CachedMeta>(MAX_META_CACHE_ENTRIES)
     private val primaryAddonMetaCache = createLruCacheMap<String, CachedMeta>(MAX_PRIMARY_META_CACHE_ENTRIES)
+    private val primaryMetaNegativeCache = createLruCacheMap<String, Long>(MAX_PRIMARY_META_CACHE_ENTRIES)
     private val serverMetaCache = createLruCacheMap<String, CachedMeta>(MAX_META_CACHE_ENTRIES)
 
     // In-flight deduplication: prevents concurrent coroutines from firing duplicate requests
@@ -513,6 +518,13 @@ class MetaRepositoryImpl @Inject constructor(
             }
             primaryAddonMetaCache.remove(cacheKey)
         }
+        primaryMetaNegativeCache[cacheKey]?.let { expiresAt ->
+            if (System.currentTimeMillis() < expiresAt) {
+                emit(NetworkResult.Error(context.getString(R.string.error_meta_no_addon_for_id, id, type)))
+                return@flow
+            }
+            primaryMetaNegativeCache.remove(cacheKey)
+        }
 
         emit(NetworkResult.Loading)
 
@@ -522,7 +534,8 @@ class MetaRepositoryImpl @Inject constructor(
         val candidate = selectPrimaryMetaCandidate(
             addons = addons,
             requestedType = requestedType,
-            inferredType = inferredType
+            inferredType = inferredType,
+            id = id
         )
 
         if (candidate == null) {
@@ -567,6 +580,7 @@ class MetaRepositoryImpl @Inject constructor(
         if (meta != null) {
             emit(NetworkResult.Success(meta))
         } else {
+            primaryMetaNegativeCache[cacheKey] = System.currentTimeMillis() + NEGATIVE_META_TTL_MS
             emit(NetworkResult.Error(buildAggregateFailureMessage(
                 type = requestedType,
                 id = id,
@@ -697,16 +711,33 @@ class MetaRepositoryImpl @Inject constructor(
     private fun selectPrimaryMetaCandidate(
         addons: List<Addon>,
         requestedType: String,
-        inferredType: String
+        inferredType: String,
+        id: String
     ): Pair<Addon, String>? {
+        // Route by ID ownership first, mirroring getMetaFromAllAddons: an addon that
+        // declares idPrefixes only receives IDs it actually owns. This keeps non-TMDB
+        // IDs (jp*, lz:*, trybox_*, ...) away from the TMDB catalog addon.
         addons.forEach { addon ->
-            if (addon.supportsMetaType(requestedType)) {
+            if (addon.supportsMetaType(requestedType) && addon.supportsMetaId(id)) {
                 return addon to requestedType
             }
         }
         if (!inferredType.equals(requestedType, ignoreCase = true)) {
             addons.forEach { addon ->
-                if (addon.supportsMetaType(inferredType)) {
+                if (addon.supportsMetaType(inferredType) && addon.supportsMetaId(id)) {
+                    return addon to inferredType
+                }
+            }
+        }
+        // Legacy fallback: addons without any ID-prefix routing (accept-all).
+        addons.forEach { addon ->
+            if (addon.supportsMetaType(requestedType) && addon.idPrefixes.isEmpty()) {
+                return addon to requestedType
+            }
+        }
+        if (!inferredType.equals(requestedType, ignoreCase = true)) {
+            addons.forEach { addon ->
+                if (addon.supportsMetaType(inferredType) && addon.idPrefixes.isEmpty()) {
                     return addon to inferredType
                 }
             }
@@ -780,6 +811,7 @@ class MetaRepositoryImpl @Inject constructor(
         metaCache.clear()
         addonMetaCache.clear()
         primaryAddonMetaCache.clear()
+        primaryMetaNegativeCache.clear()
         serverMetaCache.clear()
         inFlightMeta.clear()
         inFlightAddonMeta.clear()

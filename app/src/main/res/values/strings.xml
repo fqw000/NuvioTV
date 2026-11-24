@@ -1564,6 +1564,11 @@
     <string name="tmdb_more_like_this_subtitle">TMDB recommendation backdrops on detail and post-play screens</string>
     <string name="tmdb_collections_title">Collections</string>
     <string name="tmdb_collections_subtitle">TMDB movie collections in release order</string>
+    <string name="tmdb_api_base_url_title">TMDB Proxy Address</string>
+    <string name="tmdb_api_base_url_subtitle">Optional custom TMDB API base URL (blank uses the built-in default)</string>
+    <string name="tmdb_api_base_url_dialog_title">TMDB Proxy Address</string>
+    <string name="tmdb_api_base_url_dialog_subtitle">Enter a full base URL ending with /3/, e.g. https://tmdb.example.com/3/</string>
+    <string name="tmdb_api_base_url_placeholder">https://tmdb.example.com/3/</string>
 
     <string name="tmdb_language_dialog_title">TMDB Language</string>
 

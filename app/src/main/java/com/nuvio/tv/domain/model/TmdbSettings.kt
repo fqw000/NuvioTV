@@ -26,5 +26,7 @@ data class TmdbSettings(
     // Group: Recommendations (more like this)
     val useMoreLikeThis: Boolean = true,
     // Group: Collections
-    val useCollections: Boolean = true
+    val useCollections: Boolean = true,
+    // Custom TMDB API base URL / proxy. Blank means "use the build-time default".
+    val tmdbApiBaseUrl: String = ""
 )
