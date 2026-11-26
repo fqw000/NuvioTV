@@ -15,6 +15,7 @@ import com.nuvio.tv.domain.model.toStreamAudioDelayMs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.coroutineContext
@@ -345,20 +346,17 @@ class PluginRuntime @Inject constructor() {
                         runCatching { String(base64Decode(b64), Charsets.UTF_8) }.getOrDefault("")
                     }
 
-                    // Synchronous sleep backing the setTimeout/setInterval polyfills.
-                    // QuickJS has no event loop, so timers must block the script thread.
-                    function("__native_sleep") { args ->
+                    // Non-blocking delay backing the setTimeout/setInterval polyfills.
+                    // QuickJS has no event loop, so timers are driven by an async job
+                    // awaiting this delay; the script thread stays free meanwhile.
+                    asyncFunction("__native_delay") { args ->
                         val raw = args.getOrNull(0)
                         val ms = when (raw) {
                             is Number -> raw.toLong()
                             else -> raw?.toString()?.toDoubleOrNull()?.toLong() ?: 0L
                         }
                         if (ms > 0L) {
-                            try {
-                                Thread.sleep(ms.coerceAtMost(60_000L))
-                            } catch (_: InterruptedException) {
-                                Thread.currentThread().interrupt()
-                            }
+                            delay(ms.coerceAtMost(60_000L))
                         }
                         null
                     }
@@ -837,24 +835,49 @@ class PluginRuntime @Inject constructor() {
 
             // Timers. QuickJS exposes no event loop, so providers that await a delay
             // (e.g. "await new Promise(r => setTimeout(r, ms))" in retry logic) hit
-            // "setTimeout is not defined". Implement them on top of a native sleep so
-            // the callback runs before control returns to the provider.
+            // "setTimeout is not defined". Implement them as async jobs awaiting a
+            // non-blocking native delay: the script thread stays free, so
+            // Promise.race([fetch, timeout]) and AbortController fuses behave as on
+            // Node/WebKit. clearTimeout cancels the pending timer.
+            globalThis.__nuvio_timer_seq = globalThis.__nuvio_timer_seq || 0;
+            globalThis.__nuvio_timers = globalThis.__nuvio_timers || {};
             if (typeof globalThis.setTimeout === 'undefined') {
                 globalThis.setTimeout = function(fn, ms) {
-                    if (typeof fn === 'function') {
-                        var extraArgs = Array.prototype.slice.call(arguments, 2);
-                        try {
-                            __native_sleep((ms | 0) || 0);
-                            fn.apply(null, extraArgs);
-                        } catch (e) {
-                            console.error('setTimeout callback error: ' + (e && e.message ? e.message : e));
+                    if (typeof fn !== 'function') return 0;
+                    var id = ++globalThis.__nuvio_timer_seq;
+                    var extraArgs = Array.prototype.slice.call(arguments, 2);
+                    globalThis.__nuvio_timers[id] = { active: true };
+                    var run = async function() {
+                        var remaining = (ms | 0) || 0;
+                        while (remaining > 0 && globalThis.__nuvio_timers[id] && globalThis.__nuvio_timers[id].active) {
+                            var step = remaining < 100 ? remaining : 100;
+                            await __native_delay(step);
+                            remaining -= step;
                         }
-                    }
-                    return 0;
+                        var entry = globalThis.__nuvio_timers[id];
+                        if (entry && entry.active) {
+                            delete globalThis.__nuvio_timers[id];
+                            try {
+                                fn.apply(null, extraArgs);
+                            } catch (e) {
+                                console.error('setTimeout callback error: ' + (e && e.message ? e.message : e));
+                            }
+                        } else {
+                            delete globalThis.__nuvio_timers[id];
+                        }
+                    };
+                    run();
+                    return id;
                 };
             }
             if (typeof globalThis.clearTimeout === 'undefined') {
-                globalThis.clearTimeout = function(id) {};
+                globalThis.clearTimeout = function(id) {
+                    var entry = globalThis.__nuvio_timers[id];
+                    if (entry) {
+                        entry.active = false;
+                        delete globalThis.__nuvio_timers[id];
+                    }
+                };
             }
             if (typeof globalThis.setInterval === 'undefined') {
                 // No event loop: an interval degenerates to a single delayed call.
@@ -863,7 +886,9 @@ class PluginRuntime @Inject constructor() {
                 };
             }
             if (typeof globalThis.clearInterval === 'undefined') {
-                globalThis.clearInterval = function(id) {};
+                globalThis.clearInterval = function(id) {
+                    globalThis.clearTimeout(id);
+                };
             }
 
             // Fetch implementation (async)
