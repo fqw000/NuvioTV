@@ -1726,7 +1726,12 @@ internal fun PlayerChoiceDialog(
 
 /**
  * Shows the direct stream link for a stream card, opened via the menu key or a
- * long press of select. Mirrors NuvioMobile's "Copy link" action.
+ * long press of select. The link is copied to the clipboard as soon as the
+ * dialog opens; only a Close button remains (Back also dismisses).
+ *
+ * NOTE: do not add an onPreviewKeyEvent here that swallows ACTION_UP for the
+ * select/menu keys — TV Material Card fires onClick on key-up, so doing so
+ * makes every button in this dialog unclickable.
  */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -1735,14 +1740,18 @@ internal fun StreamUrlDialog(
     onDismiss: () -> Unit,
     onCopy: (String) -> Unit
 ) {
-    val copyFocusRequester = remember { FocusRequester() }
-    val streamLinkText = stringResource(R.string.stream_url_copy)
+    val closeFocusRequester = remember { FocusRequester() }
     val closeText = stringResource(R.string.action_close)
+    val copiedText = stringResource(R.string.stream_url_copied)
     val noLinkText = stringResource(R.string.stream_url_none)
     val url = remember(stream) { stream.getStreamUrl() }
 
+    // Copy immediately when opened, then focus Close so OK/Back can dismiss.
     LaunchedEffect(Unit) {
-        copyFocusRequester.requestFocus()
+        if (!url.isNullOrBlank()) {
+            onCopy(url)
+        }
+        closeFocusRequester.requestFocus()
     }
 
     androidx.compose.ui.window.Dialog(
@@ -1753,13 +1762,6 @@ internal fun StreamUrlDialog(
             modifier = Modifier
                 .clip(RoundedCornerShape(NuvioTheme.radii.xl))
                 .background(NuvioTheme.colors.BackgroundCard)
-                .onPreviewKeyEvent { event ->
-                    val native = event.nativeKeyEvent
-                    // Swallow the select/menu key-up that opened this dialog so it
-                    // does not immediately trigger the focused Copy button.
-                    native.action == AndroidKeyEvent.ACTION_UP &&
-                        (isSelectKey(native.keyCode) || native.keyCode == AndroidKeyEvent.KEYCODE_MENU)
-                }
         ) {
             Column(
                 modifier = Modifier
@@ -1774,86 +1776,54 @@ internal fun StreamUrlDialog(
                 )
 
                 Text(
-                    text = url ?: noLinkText,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        textDirection = (url ?: noLinkText).contentTextDirection()
-                    ),
-                    color = NuvioTheme.colors.TextSecondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                        .verticalScroll(rememberScrollState())
+                    text = if (!url.isNullOrBlank()) copiedText else noLinkText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NuvioTheme.colors.TextSecondary
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    var copyFocused by remember { mutableStateOf(false) }
-                    Card(
-                        onClick = {
-                            if (!url.isNullOrBlank()) {
-                                onCopy(url)
-                                onDismiss()
-                            }
-                        },
+                if (!url.isNullOrBlank()) {
+                    Text(
+                        text = url,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            textDirection = url.contentTextDirection()
+                        ),
+                        color = NuvioTheme.colors.TextPrimary,
                         modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(copyFocusRequester)
-                            .onFocusChanged { copyFocused = it.isFocused },
-                        colors = CardDefaults.colors(
-                            containerColor = NuvioTheme.colors.BackgroundElevated,
-                            focusedContainerColor = NuvioTheme.colors.Secondary
-                        ),
-                        border = CardDefaults.border(
-                            focusedBorder = Border(
-                                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
-                                shape = RoundedCornerShape(NuvioTheme.radii.md)
-                            )
-                        ),
-                        shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
-                        scale = CardDefaults.scale(focusedScale = 1.05f)
-                    ) {
-                        Text(
-                            text = streamLinkText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (copyFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
-                            modifier = Modifier
-                                .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
-                                .fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
 
-                    var closeFocused by remember { mutableStateOf(false) }
-                    Card(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { closeFocused = it.isFocused },
-                        colors = CardDefaults.colors(
-                            containerColor = NuvioTheme.colors.BackgroundElevated,
-                            focusedContainerColor = NuvioTheme.colors.Secondary
-                        ),
-                        border = CardDefaults.border(
-                            focusedBorder = Border(
-                                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
-                                shape = RoundedCornerShape(NuvioTheme.radii.md)
-                            )
-                        ),
-                        shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
-                        scale = CardDefaults.scale(focusedScale = 1.05f)
-                    ) {
-                        Text(
-                            text = closeText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (closeFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
-                            modifier = Modifier
-                                .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
-                                .fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                var closeFocused by remember { mutableStateOf(false) }
+                Card(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(closeFocusRequester)
+                        .onFocusChanged { closeFocused = it.isFocused },
+                    colors = CardDefaults.colors(
+                        containerColor = NuvioTheme.colors.BackgroundElevated,
+                        focusedContainerColor = NuvioTheme.colors.Secondary
+                    ),
+                    border = CardDefaults.border(
+                        focusedBorder = Border(
+                            border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                            shape = RoundedCornerShape(NuvioTheme.radii.md)
                         )
-                    }
+                    ),
+                    shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
+                    scale = CardDefaults.scale(focusedScale = 1.05f)
+                ) {
+                    Text(
+                        text = closeText,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (closeFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
+                        modifier = Modifier
+                            .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
+                            .fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
