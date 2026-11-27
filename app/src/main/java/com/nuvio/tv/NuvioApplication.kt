@@ -7,6 +7,9 @@ import android.os.Build
 import android.os.StrictMode
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.network.NetworkFetcher
+import coil3.network.okhttp.asNetworkClient
+import com.nuvio.tv.core.image.CollectionCoverNetworkClient
 import com.nuvio.tv.core.image.CustomPosterFallbackInterceptor
 import com.nuvio.tv.core.image.HardwareBitmapSettingInterceptor
 import coil3.disk.DiskCache
@@ -28,7 +31,7 @@ import com.nuvio.tv.core.sync.androidtv.AndroidTvChannelSyncService
 import com.nuvio.tv.core.network.IPv4FirstDns
 import com.nuvio.tv.core.network.NoDelaySocketFactory
 import com.nuvio.tv.core.network.TlsSupport
-import com.nuvio.tv.core.network.imageNetworkFetcherFactory
+import com.nuvio.tv.core.network.imageConnectivityChecker
 import com.nuvio.tv.data.local.ImagePerformancePreferences
 import com.nuvio.tv.data.local.SentrySettingsDataStore
 import com.nuvio.tv.data.mediaserver.ServerUserStateProjection
@@ -98,6 +101,7 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
         // store and fails on ISRG / GTS / Amazon roots (e.g. "Trust anchor not found").
         TlsSupport.init(this)
         super.onCreate()
+        registerActivityLifecycleCallbacks(com.nuvio.tv.core.usenet.UsenetAppLifecycle())
         SentryInitializer.start(this, sentrySettingsDataStore)
         PluginRuntimeHooks.onApplicationCreate(this)
         androidTvChannelSyncService.start()
@@ -154,14 +158,15 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
                 }
                 add(SvgDecoder.Factory())
                 add(
-                    imageNetworkFetcherFactory(
-                        callFactory = { imageOkHttpClient },
+                    NetworkFetcher.Factory(
+                        networkClient = { CollectionCoverNetworkClient(imageOkHttpClient.asNetworkClient()) },
                         cacheStrategy = {
                             StaleWhileRevalidateCacheStrategy(
                                 revalidationClient = { imageOkHttpClient },
                                 imageLoaderProvider = imageLoaderRef,
                             )
                         },
+                        connectivityChecker = ::imageConnectivityChecker,
                     )
                 )
             }

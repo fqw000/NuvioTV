@@ -66,6 +66,17 @@ jobs:
             echo "NUVIO_RELEASE_STORE_PASSWORD=android"
           } >> "$GITHUB_ENV"
 
+      - name: Verify Usenet Android sidecars
+        run: |
+          python3 -m unittest discover -s tests -p 'usenet_prebuilts_test.py'
+          python3 native/usenet/scripts/fetch_prebuilts.py
+          python3 native/usenet/scripts/check_prebuilts.py
+
+      - name: Test updater and Usenet and build fullDebug APK
+        run: ./gradlew :app:testFullDebugUnitTest --tests 'com.nuvio.tv.updater.*' --tests '*Usenet*' --tests '*Newznab*' --tests '*NntpProvider*' --tests '*UnplayableReleases*' --tests '*StreamFallbackSession*' --tests '*StreamAutoPlaySelector*' --tests '*StreamRepositoryPluginIsolation*' :app:assembleFullDebug --stacktrace
+
+      # Porting fork: MiTV4A needs a debug-signed fullRelease APK; the two
+      # upload steps below consume its outputs.
       - name: Build fullRelease APK
         env:
           CI_USE_DEBUG_SIGNING: "true"
