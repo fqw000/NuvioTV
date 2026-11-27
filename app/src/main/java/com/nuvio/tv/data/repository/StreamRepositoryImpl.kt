@@ -356,7 +356,13 @@ class StreamRepositoryImpl @Inject constructor(
                             videoId = videoId,
                             season = season,
                             episode = episode
-                        )
+                        ).let { (resolvedSeason, resolvedEpisode) ->
+                            if (resolvedSeason == null && resolvedEpisode == null) {
+                                resolveSeasonEpisodeFromId(videoId)
+                            } else {
+                                resolvedSeason to resolvedEpisode
+                            }
+                        }
                         val runPlugins: suspend () -> Unit = {
                             streamLocalPlugins(
                                 pluginId = pluginRequest.id,
@@ -480,11 +486,7 @@ class StreamRepositoryImpl @Inject constructor(
         if (!videoId.canRunLocalPlugins()) return null
 
         return PluginRequest(
-            id = if (videoId.startsWith("kitsu:", ignoreCase = true)) {
-                cleanKitsuPluginId(videoId)
-            } else {
-                videoId
-            },
+            id = cleanPluginId(videoId),
             mediaType = type.lowercase(),
             source = videoId.substringBefore(":").uppercase()
         )
@@ -497,12 +499,35 @@ class StreamRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun cleanKitsuPluginId(videoId: String): String {
-        val parts = videoId.split(":")
-        return if (parts.size > 2 && parts.last().toIntOrNull() != null) {
-            parts.dropLast(1).joinToString(":")
+    /**
+     * Normalize a plugin content ID to the bare form providers expect.
+     * Mirrors NuvioMobile's pluginContentId():
+     * - anime absolute IDs `kitsu:6448:68` -> `kitsu:6448` (drop trailing episode)
+     * - standard IDs `jp148390:1:1` -> `jp148390` (drop trailing :season:episode)
+     * - already-clean IDs `jp148377` / `trybox_980431` -> unchanged
+     */
+    private fun cleanPluginId(videoId: String): String {
+        val trimmed = videoId.trim()
+        val parts = trimmed.split(":")
+        if (parts.size == 3 &&
+            parts[0].lowercase() in setOf("kitsu", "mal", "anilist", "anidb")
+        ) {
+            return "${parts[0]}:${parts[1]}"
+        }
+        return trimmed.replace(Regex(":\\d+:\\d+$"), "")
+    }
+
+    /**
+     * Fallback for standalone IDs (e.g. `jp148390:1:1`) when the UI did not
+     * supply explicit season/episode. Parse trailing :S:E from the ID so the
+     * provider receives the requested episode instead of (null, null).
+     */
+    private fun resolveSeasonEpisodeFromId(videoId: String): Pair<Int?, Int?> {
+        val match = Regex(":(\\d+):(\\d+)$").find(videoId.trim())
+        return if (match != null) {
+            (match.groupValues[1].toIntOrNull() to match.groupValues[2].toIntOrNull())
         } else {
-            videoId
+            (null to null)
         }
     }
 
@@ -542,9 +567,11 @@ class StreamRepositoryImpl @Inject constructor(
      * Stream local plugin results - each scraper sends results individually
      */
     private fun String.canRunLocalPlugins(): Boolean {
-        return startsWith("kitsu:", ignoreCase = true) ||
-            startsWith("anilist:", ignoreCase = true) ||
-            startsWith("mal:", ignoreCase = true)
+        // Provider scripts own ID recognition and early-return on unknown IDs.
+        // The client used to whitelist only kitsu/anilist/mal, which silently
+        // dropped standalone IDs such as `jp148390` before any provider ran.
+        // Match NuvioMobile: pass any non-blank ID through and let providers decide.
+        return isNotBlank()
     }
 
     private suspend fun streamLocalPlugins(
