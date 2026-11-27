@@ -3534,4 +3534,9 @@
     <string name="autosync_status_failed">Failed</string>
     <string name="stream_resume_from_time">Resume from %1$s</string>
     <string name="stream_resume_from_percent">Resume from %1$d%%</string>
+    <string name="stream_url_dialog_hint">Press menu or long-press select to view a stream link</string>
+    <string name="stream_url_dialog_title">Stream link</string>
+    <string name="stream_url_copy">Copy link</string>
+    <string name="stream_url_copied">Link copied to clipboard</string>
+    <string name="stream_url_none">No direct link available</string>
 </resources>

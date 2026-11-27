@@ -3224,4 +3224,10 @@
     <string name="stream_test_video_bitrate">平均视频比特率：%1$s</string>
     <string name="stream_test_error_connection">连接失败。上次播放的流链接可能已过期或无法访问。请重新播放视频并重试。</string>
 
+    <string name="stream_url_dialog_hint">按菜单键或长按确认键查看流链接</string>
+    <string name="stream_url_dialog_title">流链接</string>
+    <string name="stream_url_copy">复制链接</string>
+    <string name="stream_url_copied">链接已复制到剪贴板</string>
+    <string name="stream_url_none">没有可用的直链</string>
+
 </resources>

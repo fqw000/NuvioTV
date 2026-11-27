@@ -3219,4 +3219,10 @@
     <string name="stream_test_video_bitrate">平均影片位元率：%1$s</string>
     <string name="stream_test_error_connection">連線失敗。上次播放的串流連結可能已過期或無法存取。請重新播放影片並重試。</string>
 
+    <string name="stream_url_dialog_hint">按選單鍵或長按確認鍵檢視串流連結</string>
+    <string name="stream_url_dialog_title">串流連結</string>
+    <string name="stream_url_copy">複製連結</string>
+    <string name="stream_url_copied">連結已複製到剪貼簿</string>
+    <string name="stream_url_none">沒有可用的直接連結</string>
+
 </resources>

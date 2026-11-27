@@ -26,9 +26,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -119,6 +122,11 @@ import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import android.view.KeyEvent as AndroidKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -159,6 +167,9 @@ fun StreamScreen(
     var pendingPlaybackInfo by remember { mutableStateOf<StreamPlaybackInfo?>(null) }
     var showP2pConsentDialog by remember { mutableStateOf(false) }
     var pendingTorrentPlaybackInfo by remember { mutableStateOf<StreamPlaybackInfo?>(null) }
+    var streamUrlDialogStream by remember { mutableStateOf<Stream?>(null) }
+    val clipboardManager = LocalClipboardManager.current
+    val streamLinkCopiedText = stringResource(R.string.stream_url_copied)
     val p2pEnabled by viewModel.p2pEnabled.collectAsStateWithLifecycle(initialValue = false)
     val streamBadgeSettings by viewModel.streamBadgeSettings.collectAsStateWithLifecycle(
         initialValue = StreamBadgeSettings()
@@ -487,6 +498,7 @@ fun StreamScreen(
                             }
                         }
                     },
+                    onShowUrl = { stream -> streamUrlDialogStream = stream },
                     onStreamSelected = { stream ->
                         val currentIndex = uiState.filteredStreams.indexOfFirst {
                             it.url == stream.url &&
@@ -524,6 +536,18 @@ fun StreamScreen(
                         .fillMaxHeight()
                 )
             }
+        }
+
+        // Stream link dialog (menu key / long-press select on a stream card)
+        streamUrlDialogStream?.let { dialogStream ->
+            StreamUrlDialog(
+                stream = dialogStream,
+                onDismiss = { streamUrlDialogStream = null },
+                onCopy = { url ->
+                    clipboardManager.setText(AnnotatedString(url))
+                    Toast.makeText(context, streamLinkCopiedText, Toast.LENGTH_SHORT).show()
+                }
+            )
         }
 
         // Player choice dialog for "Ask every time" preference
@@ -776,6 +800,7 @@ private fun RightStreamSection(
     partySource: PartySource?,
     onSharedStreamSelected: (Stream) -> Unit,
     onStreamSelected: (Stream) -> Unit,
+    onShowUrl: (Stream) -> Unit,
     focusedStreamIndex: Int,
     shouldRestoreFocusedStream: Boolean,
     onRestoreFocusedStreamHandled: () -> Unit,
@@ -981,6 +1006,7 @@ private fun RightStreamSection(
                                 partySource = partySource,
                                 onSharedStreamSelected = onSharedStreamSelected,
                                 onStreamSelected = onStreamSelected,
+                                onShowUrl = onShowUrl,
                                 focusedStreamIndex = focusedStreamIndex,
                                 shouldRestoreFocusedStream = shouldRestoreFocusedStream,
                                 onRestoreFocusedStreamHandled = onRestoreFocusedStreamHandled,
@@ -1104,6 +1130,7 @@ private fun StreamsList(
     partySource: PartySource?,
     onSharedStreamSelected: (Stream) -> Unit,
     onStreamSelected: (Stream) -> Unit,
+    onShowUrl: (Stream) -> Unit,
     focusedStreamIndex: Int = 0,
     shouldRestoreFocusedStream: Boolean = false,
     onRestoreFocusedStreamHandled: () -> Unit = {},
@@ -1290,6 +1317,7 @@ private fun StreamsList(
                         showAddonLogo = showAddonLogo,
                         badgePlacement = badgePlacement,
                         onClick = { onSharedStreamSelected(shared.stream) },
+                        onShowUrl = { onShowUrl(shared.stream) },
                         focusRequester = sharedFocusRequester,
                         onFocusChanged = { focused -> sharedCardHasFocus = focused },
                         onUpKey = {
@@ -1319,6 +1347,7 @@ private fun StreamsList(
                     reserveBadgeSpace = hasBadgeRules && stream.badges.isEmpty(),
                     label = partySourceLabel.takeIf { isPartySource },
                     onClick = { onStreamSelected(stream) },
+                    onShowUrl = { onShowUrl(stream) },
                     focusRequester = when {
                         shouldRestoreFocusedStream && index == focusedStreamIndex.coerceIn(0, (streams.lastIndex).coerceAtLeast(0)) -> restoreFocusRequester
                         else -> streamFocusRequesters.getOrPut(streamKeys[index]) { FocusRequester() }
@@ -1366,6 +1395,7 @@ private fun StreamCard(
     badgePlacement: StreamBadgePlacement,
     reserveBadgeSpace: Boolean = false,
     onClick: () -> Unit,
+    onShowUrl: () -> Unit,
     focusRequester: FocusRequester? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
     onUpKey: (() -> Unit)? = null,
@@ -1373,6 +1403,8 @@ private fun StreamCard(
     label: String? = null
 ) {
     val context = LocalContext.current
+    var longPressTriggered by remember { mutableStateOf(false) }
+    val longPressKeyTracker = rememberLongPressKeyTracker()
     val density = LocalDensity.current
     val unknownStreamLabel = stringResource(R.string.stream_unknown)
     val streamName = remember(stream, unknownStreamLabel) { stream.getDisplayNameOrNull() ?: unknownStreamLabel }
@@ -1417,7 +1449,38 @@ private fun StreamCard(
                 if (event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN && event.key == Key.DirectionUp) {
                     onUpKey(); true
                 } else false
-            } else Modifier),
+            } else Modifier)
+            .onPreviewKeyEvent { event ->
+                val native = event.nativeKeyEvent
+                // Menu key opens the stream link dialog immediately.
+                if (native.action == AndroidKeyEvent.ACTION_DOWN &&
+                    native.keyCode == AndroidKeyEvent.KEYCODE_MENU
+                ) {
+                    longPressTriggered = true
+                    onShowUrl()
+                    return@onPreviewKeyEvent true
+                }
+                // Long-press of select (DPAD center / Enter) opens the same dialog.
+                if (longPressKeyTracker.handle(native, ::isSelectKey) {
+                        longPressTriggered = true
+                        onShowUrl()
+                    }
+                ) {
+                    if (native.action == AndroidKeyEvent.ACTION_UP) {
+                        longPressTriggered = false
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                // Swallow the key-up that follows a long press so Card's onClick
+                // does not launch playback.
+                if (native.action == AndroidKeyEvent.ACTION_UP && longPressTriggered &&
+                    (isSelectKey(native.keyCode) || native.keyCode == AndroidKeyEvent.KEYCODE_MENU)
+                ) {
+                    longPressTriggered = false
+                    return@onPreviewKeyEvent true
+                }
+                false
+            },
         colors = CardDefaults.colors(
             containerColor = NuvioTheme.colors.BackgroundElevated,
             focusedContainerColor = NuvioTheme.colors.BackgroundElevated
@@ -1659,4 +1722,146 @@ internal fun PlayerChoiceDialog(
             }
         }
     }
+}
+
+/**
+ * Shows the direct stream link for a stream card, opened via the menu key or a
+ * long press of select. Mirrors NuvioMobile's "Copy link" action.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+internal fun StreamUrlDialog(
+    stream: Stream,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit
+) {
+    val copyFocusRequester = remember { FocusRequester() }
+    val streamLinkText = stringResource(R.string.stream_url_copy)
+    val closeText = stringResource(R.string.action_close)
+    val noLinkText = stringResource(R.string.stream_url_none)
+    val url = remember(stream) { stream.getStreamUrl() }
+
+    LaunchedEffect(Unit) {
+        copyFocusRequester.requestFocus()
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(NuvioTheme.radii.xl))
+                .background(NuvioTheme.colors.BackgroundCard)
+                .onPreviewKeyEvent { event ->
+                    val native = event.nativeKeyEvent
+                    // Swallow the select/menu key-up that opened this dialog so it
+                    // does not immediately trigger the focused Copy button.
+                    native.action == AndroidKeyEvent.ACTION_UP &&
+                        (isSelectKey(native.keyCode) || native.keyCode == AndroidKeyEvent.KEYCODE_MENU)
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(640.dp)
+                    .padding(NuvioTheme.spacing.xl),
+                verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg)
+            ) {
+                Text(
+                    text = stringResource(R.string.stream_url_dialog_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = NuvioTheme.colors.TextPrimary
+                )
+
+                Text(
+                    text = url ?: noLinkText,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        textDirection = (url ?: noLinkText).contentTextDirection()
+                    ),
+                    color = NuvioTheme.colors.TextSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState())
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    var copyFocused by remember { mutableStateOf(false) }
+                    Card(
+                        onClick = {
+                            if (!url.isNullOrBlank()) {
+                                onCopy(url)
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(copyFocusRequester)
+                            .onFocusChanged { copyFocused = it.isFocused },
+                        colors = CardDefaults.colors(
+                            containerColor = NuvioTheme.colors.BackgroundElevated,
+                            focusedContainerColor = NuvioTheme.colors.Secondary
+                        ),
+                        border = CardDefaults.border(
+                            focusedBorder = Border(
+                                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                                shape = RoundedCornerShape(NuvioTheme.radii.md)
+                            )
+                        ),
+                        shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
+                        scale = CardDefaults.scale(focusedScale = 1.05f)
+                    ) {
+                        Text(
+                            text = streamLinkText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (copyFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
+                            modifier = Modifier
+                                .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
+                                .fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    var closeFocused by remember { mutableStateOf(false) }
+                    Card(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { closeFocused = it.isFocused },
+                        colors = CardDefaults.colors(
+                            containerColor = NuvioTheme.colors.BackgroundElevated,
+                            focusedContainerColor = NuvioTheme.colors.Secondary
+                        ),
+                        border = CardDefaults.border(
+                            focusedBorder = Border(
+                                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                                shape = RoundedCornerShape(NuvioTheme.radii.md)
+                            )
+                        ),
+                        shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
+                        scale = CardDefaults.scale(focusedScale = 1.05f)
+                    ) {
+                        Text(
+                            text = closeText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (closeFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
+                            modifier = Modifier
+                                .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
+                                .fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun isSelectKey(keyCode: Int): Boolean {
+    return keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
 }
