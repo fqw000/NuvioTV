@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
@@ -1727,7 +1728,9 @@ internal fun PlayerChoiceDialog(
 /**
  * Shows the direct stream link for a stream card, opened via the menu key or a
  * long press of select. The link is copied to the clipboard as soon as the
- * dialog opens; only a Close button remains (Back also dismisses).
+ * dialog opens. There is deliberately no Close/OK button: a long-press opens
+ * this dialog mid key-down, and the trailing ACTION_UP would land on an
+ * auto-focused button and dismiss it instantly. Back dismisses instead.
  *
  * NOTE: do not add an onPreviewKeyEvent here that swallows ACTION_UP for the
  * select/menu keys — TV Material Card fires onClick on key-up, so doing so
@@ -1740,18 +1743,20 @@ internal fun StreamUrlDialog(
     onDismiss: () -> Unit,
     onCopy: (String) -> Unit
 ) {
-    val closeFocusRequester = remember { FocusRequester() }
-    val closeText = stringResource(R.string.action_close)
+    val dialogFocusRequester = remember { FocusRequester() }
     val copiedText = stringResource(R.string.stream_url_copied)
     val noLinkText = stringResource(R.string.stream_url_none)
+    val backHintText = stringResource(R.string.hero_synopsis_dismiss_hint)
     val url = remember(stream) { stream.getStreamUrl() }
 
-    // Copy immediately when opened, then focus Close so OK/Back can dismiss.
+    // Copy immediately when opened. Focus the dialog container itself (not a
+    // button) so the trailing long-press key-up cannot trigger a click, while
+    // keeping focus inside the dialog so it doesn't leak to the stream cards.
     LaunchedEffect(Unit) {
         if (!url.isNullOrBlank()) {
             onCopy(url)
         }
-        closeFocusRequester.requestFocus()
+        dialogFocusRequester.requestFocus()
     }
 
     androidx.compose.ui.window.Dialog(
@@ -1762,6 +1767,8 @@ internal fun StreamUrlDialog(
             modifier = Modifier
                 .clip(RoundedCornerShape(NuvioTheme.radii.xl))
                 .background(NuvioTheme.colors.BackgroundCard)
+                .focusRequester(dialogFocusRequester)
+                .focusable()
         ) {
             Column(
                 modifier = Modifier
@@ -1795,36 +1802,11 @@ internal fun StreamUrlDialog(
                     )
                 }
 
-                var closeFocused by remember { mutableStateOf(false) }
-                Card(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(closeFocusRequester)
-                        .onFocusChanged { closeFocused = it.isFocused },
-                    colors = CardDefaults.colors(
-                        containerColor = NuvioTheme.colors.BackgroundElevated,
-                        focusedContainerColor = NuvioTheme.colors.Secondary
-                    ),
-                    border = CardDefaults.border(
-                        focusedBorder = Border(
-                            border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
-                            shape = RoundedCornerShape(NuvioTheme.radii.md)
-                        )
-                    ),
-                    shape = CardDefaults.shape(shape = RoundedCornerShape(NuvioTheme.radii.md)),
-                    scale = CardDefaults.scale(focusedScale = 1.05f)
-                ) {
-                    Text(
-                        text = closeText,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (closeFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary,
-                        modifier = Modifier
-                            .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                }
+                Text(
+                    text = backHintText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NuvioTheme.colors.TextSecondary
+                )
             }
         }
     }
