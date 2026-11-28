@@ -91,6 +91,12 @@ val doviExtractorHookReady = parseBooleanProperty(
 val doviEnableRealLink = parseBooleanProperty(
     resolveProperty(devProperties, localProperties, "DOVI_ENABLE_REAL_LINK")
 )
+// 央视 h5e 点播解密：构建默认开启（在线 CI 无需改 local.properties），
+// 可用 CCTV_H5E_DECRYPT_ENABLED=false 彻底移除 native 依赖与解密逻辑。
+// 运行时默认只对 behaviorHints.h5eEncrypted=true 的 stream 生效，普通流不受影响。
+val enableCctvH5eDecrypt = resolveProperty(
+    devProperties, localProperties, "CCTV_H5E_DECRYPT_ENABLED", "true"
+).trim().lowercase() !in setOf("false", "0", "no", "off")
 val doviStaticLibPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_STATIC_LIB")
 val doviIncludeDirPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_INCLUDE_DIR")
 val doviPrebuiltRootPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_PREBUILT_ROOT")
@@ -160,6 +166,7 @@ android {
         buildConfigField("String", "DEVICE_LOGIN_WEB_BASE_URL", "\"${localProperties.getProperty("DEVICE_LOGIN_WEB_BASE_URL", "https://nuvio.tv/link")}\"")
         buildConfigField("boolean", "DOVI_NATIVE_ENABLED", enableDoviNative.toString())
         buildConfigField("boolean", "DOVI_EXTRACTOR_HOOK_READY", doviExtractorHookReady.toString())
+        buildConfigField("boolean", "CCTV_H5E_DECRYPT_ENABLED", enableCctvH5eDecrypt.toString())
         if (enableDoviNative) {
             externalNativeBuild {
                 cmake {
@@ -209,11 +216,10 @@ android {
         }
     }
 
-    if (enableDoviNative) {
-        externalNativeBuild {
-            cmake {
-                path = file("src/main/cpp/CMakeLists.txt")
-            }
+    // 无条件挂载 CMake：cctv_h5e 解密库独立编译（DOVI 关闭时也需要它）。
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
         }
     }
 

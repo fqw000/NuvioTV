@@ -1169,7 +1169,8 @@ internal fun PlayerRuntimeController.initializePlayer(
                     mediaMetadata = buildMediaSessionMetadata(),
                     cacheKey = currentStreamCacheKey,
                     bluray = currentStreamBluray,
-                    clearKeys = currentClearKeys
+                    clearKeys = currentClearKeys,
+                    h5eEncrypted = currentH5eEncrypted
                 )
 
                 if (initialResumePosition > 0L) {

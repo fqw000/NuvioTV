@@ -190,7 +190,10 @@ internal class PlayerMediaSourceFactory(private val context: Context) {
         mediaMetadata: androidx.media3.common.MediaMetadata? = null,
         cacheKey: String? = null,
         bluray: BlurayPlaylistResolver.RemoteLayout? = null,
-        clearKeys: String? = null
+        clearKeys: String? = null,
+        /** 央视 h5e 加密流：为 true 且构建开启时，HLS 分片经原生解密 DataSource。
+         *  普通流恒为 false，完全不加载 native 库。 */
+        h5eEncrypted: Boolean = false
     ): MediaSource {
         val sanitizedHeaders = sanitizeHeaders(headers)
         // A Blu-ray folder plays its feature playlist, clip by clip.
@@ -224,6 +227,11 @@ internal class PlayerMediaSourceFactory(private val context: Context) {
         )
         val isHls = resolvedMimeType == MimeTypes.APPLICATION_M3U8
         val isDash = resolvedMimeType == MimeTypes.APPLICATION_MPD
+        // 央视 h5e 加密流：只对标记过的 HLS 注入原生解密 DataSource。
+        // 顺序：网络 → DefaultDataSource → CctvH5eDataSource（TS 解密/清单透传）
+        //       → HlsParameterSetInitDataSource → HlsMediaSource。
+        // 解密必须在 HlsParameterSetInitDataSource 读首个 TS 之前完成，故包在其内层。
+        val useCctvH5e = isHls && h5eEncrypted && com.nuvio.tv.BuildConfig.CCTV_H5E_DECRYPT_ENABLED
         val httpDataSourceFactory = if (isHls || isDash) {
             val adaptiveFactory = DefaultDataSource.Factory(
                 context,
@@ -232,9 +240,16 @@ internal class PlayerMediaSourceFactory(private val context: Context) {
                     useLongReadTimeout = isLoopbackUrl(url),
                 ),
             )
-            if (isHls) HlsParameterSetInitDataSource.Factory(adaptiveFactory) else adaptiveFactory
+            val decryptFactory: androidx.media3.datasource.DataSource.Factory =
+                if (useCctvH5e) com.nuvio.tv.core.cctv.CctvH5eDataSource.Factory(adaptiveFactory) else adaptiveFactory
+            if (isHls) HlsParameterSetInitDataSource.Factory(decryptFactory) else decryptFactory
         } else {
             PlayerPlaybackNetworking.createDataSourceFactory(context, sanitizedHeaders)
+        }
+        if (useCctvH5e) {
+            // 换集/换源时清零上一会话的分片失败计数，避免跨集残留触发误回退。
+            com.nuvio.tv.core.cctv.CctvH5eDataSource.resetTrapFailures()
+            Log.i(LOG_TAG, "CCTV_H5E: native decrypt DataSource injected for $url")
         }
 
         val mediaItemBuilder = MediaItem.Builder().setUri(url)

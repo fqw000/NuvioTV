@@ -103,7 +103,9 @@ data class BehaviorHintsDto(
     @Json(name = "audioDelayMs") val audioDelayMs: Double? = null,
     @Json(name = "audioDelayLanguage") val audioDelayLanguage: String? = null,
     // Object, array or string: normalized by toStreamClearKeys.
-    @Json(name = "clearKeys") val clearKeys: Any? = null
+    @Json(name = "clearKeys") val clearKeys: Any? = null,
+    // 央视 h5e 加密流标记：为 true 时播放器注入原生解密 DataSource。
+    @Json(name = "h5eEncrypted") val h5eEncrypted: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)

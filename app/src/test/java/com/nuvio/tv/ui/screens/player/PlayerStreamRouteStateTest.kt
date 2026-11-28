@@ -36,7 +36,8 @@ class PlayerStreamRouteStateTest {
         url: String? = "https://debrid.example/ep6.mkv",
         infoHash: String? = null,
         fileIdx: Int? = null,
-        sources: List<String>? = null
+        sources: List<String>? = null,
+        h5eEncrypted: Boolean = false
     ) = Stream(
         name = "1080p WEB",
         title = "Show S01E06",
@@ -53,7 +54,8 @@ class PlayerStreamRouteStateTest {
             proxyHeaders = null,
             videoHash = "abc123",
             videoSize = 1_288_490_188L,
-            filename = "Show S01E06 [1080p] 100%.mkv"
+            filename = "Show S01E06 [1080p] 100%.mkv",
+            h5eEncrypted = h5eEncrypted
         ),
         addonName = "Addon & Co",
         addonLogo = null,
@@ -147,5 +149,37 @@ class PlayerStreamRouteStateTest {
             listOf("tracker:udp://tracker.example:1337/announce", "dht:0123"),
             Json.parseToJsonElement(args.sourcesJson!!).jsonArray.map { it.jsonPrimitive.content }
         )
+    }
+
+    @Test
+    fun `h5e encrypted flag survives in-player stream switch`() {
+        val args = restore(
+            playerStreamRouteValues(
+                stream = stream(h5eEncrypted = true),
+                streamUrl = "https://dh5ws01.v.cntv.cn/asp/h5e/hls/2000/x/main.m3u8",
+                headers = emptyMap(),
+                videoId = null,
+                season = null,
+                episode = null,
+                episodeTitle = null
+            )
+        )
+        assertEquals(true, args.h5eEncrypted)
+    }
+
+    @Test
+    fun `plain streams have no h5e flag after switch`() {
+        val args = restore(
+            playerStreamRouteValues(
+                stream = stream(h5eEncrypted = false),
+                streamUrl = "https://example/plain.m3u8",
+                headers = emptyMap(),
+                videoId = null,
+                season = null,
+                episode = null,
+                episodeTitle = null
+            )
+        )
+        assertFalse(args.h5eEncrypted)
     }
 }

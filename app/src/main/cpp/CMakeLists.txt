@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(dovi_bridge LANGUAGES C CXX)
+project(nuvio_native LANGUAGES C CXX)
+
+# 央视 h5e 点播解密：独立于 DOVI 开关，始终参与构建（产物 libcctv_h5e.so 很小，
+# 只在 behaviorHints.h5eEncrypted 的 stream 播放时才 loadLibrary）。
+add_subdirectory(cctv_h5e)
 
 option(DOVI_ENABLE_LIBDOVI "Link against a real libdovi static library" OFF)
 set(DOVI_LIBDOVI_STATIC_LIB "" CACHE FILEPATH "Path to libdovi static archive (.a)")

@@ -121,7 +121,8 @@ fun BehaviorHintsDto.toDomain(): StreamBehaviorHints = StreamBehaviorHints(
     filename = filename,
     audioDelayMs = audioDelayMs.toStreamAudioDelayMs(),
     audioDelayLanguage = audioDelayLanguage.toStreamAudioDelayLanguage(),
-    clearKeys = clearKeys.toStreamClearKeys()
+    clearKeys = clearKeys.toStreamClearKeys(),
+    h5eEncrypted = h5eEncrypted == true
 )
 
 fun ProxyHeadersDto.toDomain(): ProxyHeaders = ProxyHeaders(

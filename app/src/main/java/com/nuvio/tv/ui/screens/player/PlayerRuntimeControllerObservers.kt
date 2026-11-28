@@ -94,6 +94,7 @@ internal suspend fun PlayerRuntimeController.fetchAddonSubtitlesNow(
                         contentLanguage = contentLanguage,
                         year = year,
                         clearKeys = currentClearKeys,
+                        h5eEncrypted = currentH5eEncrypted,
                         addonName = currentAddonName,
                         addonLogo = currentAddonLogo,
                         streamDescription = currentStreamDescription

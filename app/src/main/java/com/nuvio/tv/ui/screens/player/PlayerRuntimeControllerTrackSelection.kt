@@ -618,7 +618,8 @@ internal fun PlayerRuntimeController.attachAddonSubtitleViaMediaReload(subtitle:
             audioDelayUsProvider = audioDelayUs::get,
             cacheKey = currentStreamCacheKey,
             bluray = currentStreamBluray,
-            clearKeys = currentClearKeys
+            clearKeys = currentClearKeys,
+            h5eEncrypted = currentH5eEncrypted
         ),
         currentPosition
     )

@@ -555,6 +555,7 @@ class StreamScreenViewModel @Inject constructor(
                                 audioDelayMs = cached.audioDelayMs,
                                 audioDelayLanguage = cached.audioDelayLanguage,
                                 clearKeys = cached.clearKeys,
+                                h5eEncrypted = cached.h5eEncrypted,
                                 addonName = cached.addonName,
                                 addonLogo = cached.addonLogo,
                                 streamDescription = cached.streamDescription,
@@ -1930,6 +1931,7 @@ class StreamScreenViewModel @Inject constructor(
             audioDelayMs = stream.behaviorHints?.audioDelayMs,
             audioDelayLanguage = stream.behaviorHints?.audioDelayLanguage,
             clearKeys = stream.behaviorHints?.clearKeys,
+            h5eEncrypted = stream.behaviorHints?.h5eEncrypted == true,
             streamType = stream.declaredType
         )
         StreamSidecarSubtitles.set(playbackUrlFor(playbackInfo), stream.subtitles)
@@ -1953,6 +1955,7 @@ class StreamScreenViewModel @Inject constructor(
                     audioDelayMs = playbackInfo.audioDelayMs,
                     audioDelayLanguage = playbackInfo.audioDelayLanguage,
                     clearKeys = playbackInfo.clearKeys,
+                    h5eEncrypted = playbackInfo.h5eEncrypted,
                     addonName = playbackInfo.addonName,
                     addonLogo = playbackInfo.addonLogo,
                     streamDescription = playbackInfo.streamDescription
@@ -2545,13 +2548,15 @@ data class StreamPlaybackInfo(
     val audioDelayLanguage: String? = null,
     /** ClearKey DRM pairs: only the internal player can be handed them. */
     val clearKeys: String? = null,
+    /** 央视 h5e 加密流：原生解密只在内置 ExoPlayer 生效，不能路由到外部播放器。 */
+    val h5eEncrypted: Boolean = false,
     val isServerStream: Boolean = false,
     /** The link was taken from the reuse-last-link cache, not picked fresh from add-ons. */
     val fromLinkCache: Boolean = false,
     val streamType: String? = null
 ) {
-    /** A media server link or ClearKey keys cannot be handed to an external player. */
-    val forcesInternalPlayer: Boolean get() = isServerStream || clearKeys != null
+    /** A media server link, ClearKey keys or an encrypted h5e stream cannot be handed to an external player. */
+    val forcesInternalPlayer: Boolean get() = isServerStream || clearKeys != null || h5eEncrypted
 }
 
 /** A debrid result that could not be played: what to show, and whether the results are stale. */

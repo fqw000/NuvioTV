@@ -695,6 +695,7 @@ private fun PlaybackNavHost(
                                 audioDelayMs = playbackInfo.audioDelayMs,
                                 audioDelayLanguage = playbackInfo.audioDelayLanguage,
                                 clearKeys = playbackInfo.clearKeys,
+                                h5eEncrypted = playbackInfo.h5eEncrypted,
                                 streamType = playbackInfo.streamType
                             )
                         )
@@ -740,6 +741,7 @@ private fun PlaybackNavHost(
                                 audioDelayMs = playbackInfo.audioDelayMs,
                                 audioDelayLanguage = playbackInfo.audioDelayLanguage,
                                 clearKeys = playbackInfo.clearKeys,
+                                h5eEncrypted = playbackInfo.h5eEncrypted,
                                 fromLinkCache = playbackInfo.fromLinkCache,
                                 streamType = playbackInfo.streamType
                             )
@@ -923,6 +925,11 @@ private fun PlaybackNavHost(
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument("h5eEncrypted") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = "false"
                 }
             )
         ) { backStackEntry ->

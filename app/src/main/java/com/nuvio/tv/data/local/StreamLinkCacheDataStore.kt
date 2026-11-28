@@ -32,6 +32,7 @@ data class CachedStreamLink(
     val audioDelayMs: Int? = null,
     val audioDelayLanguage: String? = null,
     val clearKeys: String? = null,
+    val h5eEncrypted: Boolean = false,
     val addonName: String? = null,
     val addonLogo: String? = null,
     val streamDescription: String? = null,
@@ -73,6 +74,7 @@ class StreamLinkCacheDataStore @Inject constructor(
         audioDelayMs: Int? = null,
         audioDelayLanguage: String? = null,
         clearKeys: String? = null,
+        h5eEncrypted: Boolean = false,
         addonName: String? = null,
         addonLogo: String? = null,
         streamDescription: String? = null,
@@ -101,6 +103,7 @@ class StreamLinkCacheDataStore @Inject constructor(
             audioDelayMs?.let { put("audioDelayMs", it) }
             audioDelayLanguage?.let { put("audioDelayLanguage", it) }
             clearKeys?.let { put("clearKeys", it) }
+            put("h5eEncrypted", h5eEncrypted)
             addonName?.let { put("addonName", it) }
             addonLogo?.let { put("addonLogo", it) }
             streamDescription?.let { put("streamDescription", it) }
@@ -173,6 +176,7 @@ class StreamLinkCacheDataStore @Inject constructor(
                 audioDelayMs = if (json.has("audioDelayMs")) json.optInt("audioDelayMs") else null,
                 audioDelayLanguage = json.optString("audioDelayLanguage", "").ifBlank { null },
                 clearKeys = json.optString("clearKeys", "").ifBlank { null },
+                h5eEncrypted = json.optBoolean("h5eEncrypted", false),
                 addonName = json.optString("addonName", "").ifBlank { null },
                 addonLogo = json.optString("addonLogo", "").ifBlank { null },
                 streamDescription = json.optString("streamDescription", "").ifBlank { null },

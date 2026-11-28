@@ -115,7 +115,9 @@ data class LocalScraperResult(
     val subtitles: List<Subtitle> = emptyList(),
     val audioDelayMs: Int? = null,
     val audioDelayLanguage: String? = null,
-    val clearKeys: String? = null
+    val clearKeys: String? = null,
+    // 央视 h5e 加密流标记（插件 JS behaviorHints.h5eEncrypted）
+    val h5eEncrypted: Boolean = false
 )
 
 /**
@@ -352,7 +354,8 @@ fun LocalScraperResult.toStream(scraper: ScraperInfo): com.nuvio.tv.domain.model
             proxyHeaders = headers?.let { ProxyHeaders(request = it, response = null) },
             audioDelayMs = audioDelayMs,
             audioDelayLanguage = audioDelayLanguage,
-            clearKeys = clearKeys
+            clearKeys = clearKeys,
+            h5eEncrypted = h5eEncrypted
         ),
         addonName = scraper.name,
         addonLogo = scraper.logo,

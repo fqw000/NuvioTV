@@ -716,7 +716,8 @@ class StreamRepositoryImpl @Inject constructor(
                 proxyHeaders = headers?.let { ProxyHeaders(request = it, response = null) },
                 audioDelayMs = audioDelayMs,
                 audioDelayLanguage = audioDelayLanguage,
-                clearKeys = clearKeys
+                clearKeys = clearKeys,
+                h5eEncrypted = h5eEncrypted
             ),
             infoHash = infoHash,
             fileIdx = null,

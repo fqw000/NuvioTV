@@ -243,6 +243,8 @@ class PlayerRuntimeController(
     internal var currentHeaders: Map<String, String>
     // ClearKey DRM pairs of the current stream (`kid:key,kid:key`, hex).
     internal var currentClearKeys: String? = navigationArgs.clearKeys
+    // 央视 h5e 加密流：为 true 时工厂注入原生解密 DataSource。
+    internal var currentH5eEncrypted: Boolean = navigationArgs.h5eEncrypted
 
     // libmpv decrypts ClearKey DASH and MP4 through FFmpeg, but FFmpeg's HLS demuxer takes no keys.
     internal val clearKeysNeedExoPlayer: Boolean

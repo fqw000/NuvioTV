@@ -180,6 +180,7 @@ private fun PlayerRuntimeController.restartServerSession(session: ServerPlayback
     currentStreamUrl = session.url
     currentHeaders = session.headers
     currentClearKeys = null
+    currentH5eEncrypted = false
     currentStreamMimeType = PlayerMediaSourceFactory.inferMimeType(
         url = session.url,
         filename = null,

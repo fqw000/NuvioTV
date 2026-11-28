@@ -44,7 +44,8 @@ internal data class PlayerNavigationArgs(
     /** The source was picked by auto source selection (or reused from the link cache). */
     val autoPlayNav: Boolean = false,
     val streamType: String? = null,
-    val clearKeys: String? = null
+    val clearKeys: String? = null,
+    val h5eEncrypted: Boolean = false
 ) {
     val torrentTrackers: List<String>
         get() {
@@ -111,7 +112,8 @@ internal data class PlayerNavigationArgs(
                 autoPlayNav = savedStateHandle.get<String>("autoPlayNav")?.toBooleanStrictOrNull() == true,
                 streamType = decodedOrNull("streamType"),
                 // Re-normalized: the route is restored from saved state.
-                clearKeys = decodedOrNull("clearKeys").toStreamClearKeys()
+                clearKeys = decodedOrNull("clearKeys").toStreamClearKeys(),
+                h5eEncrypted = savedStateHandle.get<String>("h5eEncrypted")?.toBooleanStrictOrNull() == true
             )
         }
     }

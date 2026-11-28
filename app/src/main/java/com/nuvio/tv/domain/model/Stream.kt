@@ -273,7 +273,9 @@ data class StreamBehaviorHints(
     // When set, audioDelayMs only applies to audio and embedded subtitle tracks in this language.
     val audioDelayLanguage: String? = null,
     // ClearKey DRM pairs as `kid:key,kid:key` (hex), see [toStreamClearKeys]. Secret: never log them.
-    val clearKeys: String? = null
+    val clearKeys: String? = null,
+    // 央视 h5e 加密流：为 true 且构建开启时，HLS 分片走原生解密 DataSource。
+    val h5eEncrypted: Boolean = false
 )
 
 @Immutable

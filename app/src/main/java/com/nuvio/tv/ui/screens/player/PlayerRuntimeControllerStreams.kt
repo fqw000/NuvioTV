@@ -642,6 +642,7 @@ private fun PlayerRuntimeController.applySelectedStreamState(
     currentStreamUrl = playbackRequest.url
     currentHeaders = playbackRequest.headers
     currentClearKeys = stream.behaviorHints?.clearKeys
+    currentH5eEncrypted = stream.behaviorHints?.h5eEncrypted == true
     currentFilename = stream.behaviorHints?.filename ?: streamFilenameFromUrl(playbackRequest.url)
     currentStreamResponseHeaders = stream.behaviorHints?.proxyHeaders?.response.orEmpty()
     currentStreamMimeType = PlayerMediaSourceFactory.inferMimeType(
@@ -793,6 +794,7 @@ private fun PlayerRuntimeController.persistSelectedStreamForReuse(
             audioDelayMs = stream.behaviorHints?.audioDelayMs,
             audioDelayLanguage = stream.behaviorHints?.audioDelayLanguage,
             clearKeys = stream.behaviorHints?.clearKeys,
+            h5eEncrypted = stream.behaviorHints?.h5eEncrypted == true,
             addonName = stream.addonName,
             addonLogo = stream.addonLogo,
             streamDescription = stream.description
@@ -826,6 +828,7 @@ private fun PlayerRuntimeController.persistTorrentStreamForReuse(stream: Stream)
             audioDelayMs = stream.behaviorHints?.audioDelayMs,
             audioDelayLanguage = stream.behaviorHints?.audioDelayLanguage,
             clearKeys = stream.behaviorHints?.clearKeys,
+            h5eEncrypted = stream.behaviorHints?.h5eEncrypted == true,
             addonName = stream.addonName,
             addonLogo = stream.addonLogo,
             streamDescription = stream.description
@@ -1080,7 +1083,8 @@ internal fun PlayerRuntimeController.switchToSourceStream(
                         audioDelayUsProvider = audioDelayUs::get,
                         cacheKey = currentStreamCacheKey,
                         bluray = currentStreamBluray,
-                        clearKeys = currentClearKeys
+                        clearKeys = currentClearKeys,
+                        h5eEncrypted = currentH5eEncrypted
                     )
                 )
                 player.playWhenReady = true

@@ -1656,7 +1656,8 @@ class PluginRuntime @Inject constructor() {
                         .toStreamAudioDelayMs(),
                     audioDelayLanguage = ((item["behaviorHints"] as? Map<*, *>)?.get("audioDelayLanguage") as? String)
                         .toStreamAudioDelayLanguage(),
-                    clearKeys = (item["behaviorHints"] as? Map<*, *>)?.get("clearKeys").toStreamClearKeys()
+                    clearKeys = (item["behaviorHints"] as? Map<*, *>)?.get("clearKeys").toStreamClearKeys(),
+                    h5eEncrypted = ((item["behaviorHints"] as? Map<*, *>)?.get("h5eEncrypted") as? Boolean) == true
                 )
             }?.filter { it.url.isNotBlank() } ?: emptyList()
         } catch (e: Exception) {
