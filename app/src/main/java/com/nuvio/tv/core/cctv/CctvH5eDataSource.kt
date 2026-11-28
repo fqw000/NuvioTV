@@ -151,5 +151,5 @@ class CctvH5eDataSource(
     }
 }
 
-/** 确定性解密失败：抛非 IOException 让 media3 作为 source error 尽快上抛。 */
+/** 非致命解密失败：以 IOException 抛出，media3 走正常重试；连续失败由 open() 改抛 RuntimeException 作为 source error 上抛。 */
 class H5eDecryptException(message: String) : IOException(message)
