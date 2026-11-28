@@ -82,6 +82,8 @@ internal class PlayerMediaSourceFactory(private val context: Context) {
 
     // Called on a loader thread with the url a progressive stream opened at after a redirect.
     @Volatile var onStreamRedirected: ((requestedUrl: String, resolvedUrl: String) -> Unit)? = null
+    /** 央视 h5e 原生解密确定性失败（同段三连 trap）时触发，参数为失败分片 URI。 */
+    @Volatile var onFatalH5eDecrypt: ((failedUri: String) -> Unit)? = null
 
     // Takes the caller's context because this factory only holds the application one, which ignores the in-app language.
     fun vodCacheStateLabel(context: Context): String = when {
@@ -241,7 +243,10 @@ internal class PlayerMediaSourceFactory(private val context: Context) {
                 ),
             )
             val decryptFactory: androidx.media3.datasource.DataSource.Factory =
-                if (useCctvH5e) com.nuvio.tv.core.cctv.CctvH5eDataSource.Factory(adaptiveFactory) else adaptiveFactory
+                if (useCctvH5e) com.nuvio.tv.core.cctv.CctvH5eDataSource.Factory(
+                    adaptiveFactory,
+                    fatalDecryptListener = onFatalH5eDecrypt
+                ) else adaptiveFactory
             if (isHls) HlsParameterSetInitDataSource.Factory(decryptFactory) else decryptFactory
         } else {
             PlayerPlaybackNetworking.createDataSourceFactory(context, sanitizedHeaders)
