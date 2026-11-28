@@ -39,16 +39,18 @@ class CctvH5eDataSource(
             decryptOkCount.set(0)
         }
 
-        /** HLS 解密链工厂：包装上游 HTTP 工厂（Referer/UA 等 header 由上游配置）。 */
-        class Factory(
-            private val upstreamFactory: DataSource.Factory,
-            var fatalDecryptListener: ((String) -> Unit)? = null
-        ) : DataSource.Factory {
-            override fun createDataSource(): DataSource =
-                CctvH5eDataSource(upstreamFactory.createDataSource()).apply {
-                    onFatalDecrypt = fatalDecryptListener
-                }
-        }
+    }
+
+    /** HLS 解密链工厂：包装上游 HTTP 工厂（Referer/UA 等 header 由上游配置）。
+     *  直接嵌套在类上（而非 companion 内），保证跨文件 CctvH5eDataSource.Factory 可解析。 */
+    class Factory(
+        private val upstreamFactory: DataSource.Factory,
+        var fatalDecryptListener: ((String) -> Unit)? = null
+    ) : DataSource.Factory {
+        override fun createDataSource(): DataSource =
+            CctvH5eDataSource(upstreamFactory.createDataSource()).apply {
+                onFatalDecrypt = fatalDecryptListener
+            }
     }
 
     private val transferListeners = ArrayList<TransferListener>(2)
@@ -151,5 +153,5 @@ class CctvH5eDataSource(
     }
 }
 
-/** 非致命解密失败：以 IOException 抛出，media3 走正常重试；连续失败由 open() 改抛 RuntimeException 作为 source error 上抛。 */
+/** 确定性解密失败：抛非 IOException 让 media3 作为 source error 尽快上抛。 */
 class H5eDecryptException(message: String) : IOException(message)
